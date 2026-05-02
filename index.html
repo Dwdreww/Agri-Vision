@@ -1,0 +1,281 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>AGRI-VISION | Pineapple Health AI</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <main>
+    <!-- HOME PAGE -->
+    <section class="page active" id="homePage">
+      <div class="page-container home-layout">
+        <div class="hero-card">
+          <div class="badge">
+            <span></span>
+            Pineapple Health AI
+          </div>
+
+          <h1>AGRI<span>VISION</span></h1>
+
+          <p class="hero-text">
+            A modern pineapple crop health scanner that connects to your YOLO + EfficientNet backend pipeline.
+          </p>
+
+          <div class="hero-highlight">
+            <div>
+              <strong>Two-Stage AI</strong>
+              <p>YOLO detects possible anomaly regions, then EfficientNet classifies the crop condition.</p>
+            </div>
+
+            <div>
+              <strong>Visual Output</strong>
+              <p>The backend returns an annotated image with bounding boxes and labels.</p>
+            </div>
+
+            <div>
+              <strong>Field Ready</strong>
+              <p>Upload or capture a pineapple image directly from the interface.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-side">
+          <div class="feature-card">
+            <strong>01</strong>
+            <h3>Upload</h3>
+            <p>Select a pineapple sample image from your device.</p>
+          </div>
+
+          <div class="feature-card">
+            <strong>02</strong>
+            <h3>Detect</h3>
+            <p>The Flask backend sends the image through YOLO detection.</p>
+          </div>
+
+          <div class="feature-card">
+            <strong>03</strong>
+            <h3>Classify</h3>
+            <p>Detected regions are classified using your EfficientNet model.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCAN PAGE -->
+    <section class="page" id="scanPage">
+      <div class="page-container">
+        <div class="page-header compact-header">
+          <div>
+            <p class="small-title">Backend Scanner</p>
+            <h2>YOLO + EfficientNet Analysis</h2>
+          </div>
+
+          <div class="header-status-wrap">
+            <div class="live-status">
+              <span></span>
+              <p id="topStatus">Waiting for sample</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="scan-layout">
+          <section class="scan-workspace">
+            <div class="scan-intro">
+              <div>
+                <h3>Scan Workspace</h3>
+                <p>
+                  Upload or capture a pineapple sample. The image will be sent to your Python backend for real model prediction.
+                </p>
+              </div>
+
+              <div class="scan-steps">
+                <span>1. Add image</span>
+                <span>2. Send to backend</span>
+                <span>3. View result</span>
+              </div>
+            </div>
+
+            <div class="preview-box" id="previewBox">
+              <div class="empty-state">
+                <div class="leaf-icon">🌿</div>
+                <h4>No image selected</h4>
+                <p>Upload a photo or open the camera to begin scanning.</p>
+              </div>
+            </div>
+
+            <input type="file" id="fileInput" accept="image/*" hidden />
+
+            <div class="action-grid">
+              <button type="button" class="action-btn dark-btn" id="uploadBtn">
+                <span>↑</span>
+                Upload
+              </button>
+
+              <button type="button" class="action-btn soft-btn" id="cameraBtn">
+                <span>◎</span>
+                Camera
+              </button>
+
+              <button type="button" class="action-btn neutral-btn" id="clearBtn" disabled>
+                <span>×</span>
+                Clear
+              </button>
+
+              <button type="button" class="action-btn green-btn" id="analyzeBtn" disabled>
+                <span>→</span>
+                Analyze
+              </button>
+            </div>
+          </section>
+
+          <aside class="results-panel">
+            <div class="panel-block result-summary">
+              <div class="result-topline">
+                <p class="small-title">Backend Output</p>
+                <span class="result-badge standby" id="resultBadge">Standby</span>
+              </div>
+
+              <h3>Crop Report</h3>
+
+              <p class="result-message" id="resultText">
+                Waiting for an image sample. Your backend result will appear here after analysis.
+              </p>
+
+              <div class="recommend-box">
+                <strong>Recommendation</strong>
+                <p id="recommendationText">Upload or capture a pineapple image to begin.</p>
+              </div>
+            </div>
+
+            <div class="panel-block metrics-panel">
+              <div class="metric-card">
+                <p>Detections</p>
+                <strong id="detectionMetric">—</strong>
+              </div>
+
+              <div class="metric-card">
+                <p>Top Class</p>
+                <strong id="classMetric">—</strong>
+              </div>
+
+              <div class="metric-card">
+                <p>Confidence</p>
+                <strong id="confidenceMetric">—</strong>
+              </div>
+
+              <div class="metric-card">
+                <p>Device</p>
+                <strong id="deviceMetric">—</strong>
+              </div>
+            </div>
+
+            <div class="panel-block detections-panel">
+              <p class="small-title">Detection Details</p>
+
+              <div class="detection-list" id="detectionList">
+                <div class="detection-empty">No detections yet.</div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY PAGE -->
+    <section class="page" id="historyPage">
+      <div class="page-container">
+        <div class="page-header compact-header">
+          <div>
+            <p class="small-title">Scan History</p>
+            <h2>Recent Results</h2>
+          </div>
+
+          <button type="button" class="mini-btn" id="clearHistoryBtn">
+            Clear History
+          </button>
+        </div>
+
+        <div class="history-card">
+          <div class="history-overview">
+            <h3>Latest Scan</h3>
+            <p id="historyText">No scan history yet. Your latest result will appear here after analysis.</p>
+          </div>
+
+          <div class="history-list" id="historyList">
+            <div class="history-empty">No saved scan records yet.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABOUT PAGE -->
+    <section class="page" id="aboutPage">
+      <div class="page-container">
+        <div class="about-card">
+          <p class="small-title">About</p>
+          <h2>About AGRI-VISION</h2>
+
+          <p class="about-intro">
+            AGRI-VISION is a pineapple crop health scanner connected to a Flask backend using your YOLO and EfficientNet models.
+          </p>
+
+          <div class="about-grid">
+            <div>
+              <h3>YOLO Stage</h3>
+              <p>
+                YOLO scans the uploaded image and finds possible anomaly regions using bounding boxes.
+              </p>
+            </div>
+
+            <div>
+              <h3>EfficientNet Stage</h3>
+              <p>
+                Each YOLO crop is passed into EfficientNet for disease classification.
+              </p>
+            </div>
+
+            <div>
+              <h3>Frontend Output</h3>
+              <p>
+                The frontend shows the annotated image, prediction class, confidence, and detection count.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FULL-WIDTH SHORT FOOTER -->
+  <footer class="footer-taskbar">
+    <button class="taskbar-item active" data-page="homePage">
+      <span>⌂</span>
+      <small>Home</small>
+    </button>
+
+    <button class="taskbar-item" data-page="scanPage">
+      <span>◉</span>
+      <small>Scan</small>
+    </button>
+
+    <button class="taskbar-item" data-page="historyPage">
+      <span>▤</span>
+      <small>History</small>
+    </button>
+
+    <button class="taskbar-item" data-page="aboutPage">
+      <span>ⓘ</span>
+      <small>About</small>
+    </button>
+  </footer>
+
+  <canvas id="hiddenCanvas" width="640" height="480" hidden></canvas>
+
+  <script src="app.js"></script>
+</body>
+</html>
