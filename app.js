@@ -24,21 +24,12 @@ const historyText = document.getElementById('historyText');
 const historyList = document.getElementById('historyList');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
-const backendStatusDot = document.getElementById('backendStatusDot');
-const backendStatusText = document.getElementById('backendStatusText');
-const backendSettingsBtn = document.getElementById('backendSettingsBtn');
-const backendSettings = document.getElementById('backendSettings');
-const backendUrlInput = document.getElementById('backendUrlInput');
-const saveBackendConfigBtn = document.getElementById('saveBackendConfigBtn');
-const clearBackendConfigBtn = document.getElementById('clearBackendConfigBtn');
-
 let selectedImageFile = null;
 let stream = null;
 let currentObjectUrl = null;
 
 let scanHistory = JSON.parse(localStorage.getItem('agriVisionBackendHistory') || '[]');
 
-const backendConfigStorageKey = 'agriVisionBackendConfig';
 const runtimeBackendConfig = window.AGRI_VISION_CONFIG || {};
 
 let backendConfig = loadBackendConfig();
@@ -48,16 +39,9 @@ function normalizeBackendUrl(url) {
 }
 
 function loadBackendConfig() {
-  let savedConfig = {};
-
-  try {
-    savedConfig = JSON.parse(localStorage.getItem(backendConfigStorageKey) || '{}');
-  } catch (error) {
-    savedConfig = {};
-  }
-
   return {
-    apiBaseUrl: normalizeBackendUrl(savedConfig.apiBaseUrl || runtimeBackendConfig.apiBaseUrl || '')
+    apiBaseUrl: normalizeBackendUrl(runtimeBackendConfig.apiBaseUrl || ''),
+    apiKey: (runtimeBackendConfig.apiKey || '').trim()
   };
 }
 
@@ -81,48 +65,10 @@ function buildBackendUrl(path) {
   const baseUrl = getBackendUrl();
 
   if (!baseUrl) {
-    throw new Error('Backend URL is not configured. Open Backend Settings and add your Flask deployment link.');
+    throw new Error('Backend deployment URL is missing. Set apiBaseUrl in config.js to your Flask backend URL.');
   }
 
   return `${baseUrl}${path}`;
-}
-
-function getBackendLabel() {
-  const baseUrl = getBackendUrl();
-
-  if (!baseUrl) {
-    return 'Backend: Not configured';
-  }
-
-  if (backendConfig.apiBaseUrl) {
-    return `Backend: ${backendConfig.apiBaseUrl}`;
-  }
-
-  return 'Backend: Same origin';
-}
-
-function updateBackendSettingsUI() {
-  backendUrlInput.value = backendConfig.apiBaseUrl;
-  backendStatusText.textContent = getBackendLabel();
-  backendStatusDot.className = `backend-dot ${getBackendUrl() ? 'ready' : 'warning'}`;
-}
-
-function saveBackendConfig() {
-  backendConfig = {
-    apiBaseUrl: normalizeBackendUrl(backendUrlInput.value)
-  };
-
-  localStorage.setItem(backendConfigStorageKey, JSON.stringify(backendConfig));
-  updateBackendSettingsUI();
-  backendSettings.hidden = true;
-  topStatus.textContent = 'Backend settings saved';
-}
-
-function clearBackendConfig() {
-  localStorage.removeItem(backendConfigStorageKey);
-  backendConfig = loadBackendConfig();
-  updateBackendSettingsUI();
-  topStatus.textContent = 'Backend settings reset';
 }
 
 function getFriendlyBackendError(error) {
@@ -368,8 +314,15 @@ async function analyzeWithBackend() {
     const formData = new FormData();
     formData.append('image', selectedImageFile);
 
+    const headers = {};
+
+    if (backendConfig.apiKey) {
+      headers['X-API-Key'] = backendConfig.apiKey;
+    }
+
     const response = await fetch(buildBackendUrl('/predict'), {
       method: 'POST',
+      headers,
       body: formData
     });
 
@@ -407,7 +360,7 @@ async function analyzeWithBackend() {
     setResultBadge('Error', 'risk');
 
     resultText.textContent = errorMessage;
-    recommendationText.textContent = 'Make sure Flask is still running and the backend URL is correct. If you closed the backend terminal, start it again.';
+    recommendationText.textContent = 'Make sure Flask is still running, config.js has the correct backend URL, and the API key matches the backend environment variable.';
 
     detectionMetric.textContent = '—';
     classMetric.textContent = 'Error';
@@ -436,18 +389,6 @@ taskbarItems.forEach(item => {
   item.addEventListener('click', () => {
     showPage(item.dataset.page);
   });
-});
-
-backendSettingsBtn.addEventListener('click', () => {
-  backendSettings.hidden = !backendSettings.hidden;
-});
-
-saveBackendConfigBtn.addEventListener('click', () => {
-  saveBackendConfig();
-});
-
-clearBackendConfigBtn.addEventListener('click', () => {
-  clearBackendConfig();
 });
 
 uploadBtn.addEventListener('click', () => {
@@ -576,5 +517,4 @@ window.addEventListener('beforeunload', () => {
 
 renderEmptyPreview();
 resetAnalysisUI();
-updateBackendSettingsUI();
 renderHistory();
