@@ -21,8 +21,6 @@ Vercel references:
 - `.vercelignore` - keeps Vercel from uploading model weights and local-only files.
 - `Dockerfile` - production backend container.
 - `.dockerignore` - keeps backend image builds clean.
-- `Procfile` - non-Docker Python hosting fallback.
-- `runtime.txt` - Python version hint for non-Docker hosts.
 - `.gitignore` - local cache and generated output ignores.
 
 ## 1. Deploy The Backend First
@@ -33,7 +31,7 @@ Use Docker deployment if your host supports it:
 
 ```bash
 docker build -t agri-vision-backend .
-docker run --rm -p 5000:5000 agri-vision-backend
+docker run --rm -p 7860:7860 agri-vision-backend
 ```
 
 The backend service must include these files:
@@ -46,7 +44,7 @@ The backend service must include these files:
 Recommended backend environment variables:
 
 ```text
-PORT=5000
+PORT=7860
 FLASK_DEBUG=false
 FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
 ANNOTATION_JPEG_QUALITY=82

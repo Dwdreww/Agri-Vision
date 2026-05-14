@@ -1,5 +1,4 @@
 .git
-.github
 .venv
 __pycache__
 *.pyc
@@ -8,8 +7,6 @@ __pycache__
 .pytest_cache
 
 # Keep Vercel small. The real ML backend is deployed separately.
-AgriVision
-AgriVision/
 app.py
 requirements.txt
 DEPLOYMENT.md
@@ -19,8 +16,5 @@ README.md
 *.png
 *.jpg
 *.jpeg
-test_pipe.py
 Dockerfile
 .dockerignore
-Procfile
-runtime.txt
