@@ -1,12 +1,24 @@
 .git
+.github
 .venv
 __pycache__
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache
+
+# Vercel-only frontend proxy/config files.
 .vercel
 .vercelignore
+vercel.json
+api/
+
+# Local development and documentation files not needed in the backend image.
+.gitignore
+DEPLOYMENT.md
+test_pipe.py
+pineappletest.png
+AgriVision/
+
 node_modules
 npm-debug.log
-DEPLOYMENT.md
