@@ -6,5 +6,8 @@ __pycache__/
 node_modules/
 npm-debug.log*
 
+# Local clone of the Hugging Face Space repo.
+AgriVision/
+
 # Local generated outputs
 pipeline_result.jpg
