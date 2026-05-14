@@ -30,57 +30,6 @@ let currentObjectUrl = null;
 
 let scanHistory = JSON.parse(localStorage.getItem('agriVisionBackendHistory') || '[]');
 
-const runtimeBackendConfig = window.AGRI_VISION_CONFIG || {};
-
-let backendConfig = loadBackendConfig();
-
-function normalizeBackendUrl(url) {
-  return (url || '').trim().replace(/\/+$/, '');
-}
-
-function loadBackendConfig() {
-  return {
-    apiBaseUrl: normalizeBackendUrl(runtimeBackendConfig.apiBaseUrl || ''),
-    apiKey: (runtimeBackendConfig.apiKey || '').trim()
-  };
-}
-
-function getDefaultBackendUrl() {
-  if (window.location.protocol === 'file:') {
-    return 'http://127.0.0.1:5000';
-  }
-
-  if (window.location.hostname.endsWith('github.io')) {
-    return '';
-  }
-
-  return window.location.origin;
-}
-
-function getBackendUrl() {
-  return backendConfig.apiBaseUrl || getDefaultBackendUrl();
-}
-
-function buildBackendUrl(path) {
-  const baseUrl = getBackendUrl();
-
-  if (!baseUrl) {
-    throw new Error('Backend URL is missing in config.js. GitHub Pages cannot run Flask, so deploy app.py on a Python host and set apiBaseUrl to that backend URL.');
-  }
-
-  return `${baseUrl}${path}`;
-}
-
-function getFriendlyBackendError(error) {
-  const message = error && error.message ? error.message : String(error);
-
-  if (message === 'Failed to fetch' || message === 'NetworkError when attempting to fetch resource.') {
-    return 'Backend is not reachable. Check that the deployed Flask backend is running, the config.js apiBaseUrl is correct, and CORS allows this site.';
-  }
-
-  return message;
-}
-
 function showPage(pageId) {
   pages.forEach(page => {
     page.classList.remove('active');
@@ -314,25 +263,12 @@ async function analyzeWithBackend() {
     const formData = new FormData();
     formData.append('image', selectedImageFile);
 
-    const headers = {};
-
-    if (backendConfig.apiKey) {
-      headers['X-API-Key'] = backendConfig.apiKey;
-    }
-
-    const response = await fetch(buildBackendUrl('/predict'), {
+    const response = await fetch('/predict', {
       method: 'POST',
-      headers,
       body: formData
     });
 
-    const contentType = response.headers.get('content-type') || '';
-    const data = contentType.includes('application/json')
-      ? await response.json()
-      : {
-        success: false,
-        error: `Backend returned ${response.status} ${response.statusText}. Check the backend URL.`
-      };
+    const data = await response.json();
 
     if (!response.ok || !data.success) {
       throw new Error(data.error || 'Backend prediction failed.');
@@ -355,12 +291,10 @@ async function analyzeWithBackend() {
 
     topStatus.textContent = `${data.status_label} result`;
   } catch (error) {
-    const errorMessage = getFriendlyBackendError(error);
-
     setResultBadge('Error', 'risk');
 
-    resultText.textContent = errorMessage;
-    recommendationText.textContent = 'Make sure Flask is still running, config.js has the correct backend URL, and the API key matches the backend environment variable.';
+    resultText.textContent = error.message;
+    recommendationText.textContent = 'Make sure Flask is running, model paths are correct, and the uploaded file is a valid image.';
 
     detectionMetric.textContent = '—';
     classMetric.textContent = 'Error';
@@ -369,7 +303,7 @@ async function analyzeWithBackend() {
 
     detectionList.innerHTML = `
       <div class="detection-empty">
-        ${errorMessage}
+        ${error.message}
       </div>
     `;
 
