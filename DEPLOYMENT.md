@@ -136,6 +136,34 @@ $env:BACKEND_URL="http://127.0.0.1:5000"
 npx vercel dev
 ```
 
+## 4. Single-Folder Update Workflow
+
+Use `D:\Agri-Vision` as the only working folder. You do not need to copy files into `D:\Agri-Vision\AgriVision` anymore.
+
+Push frontend/Vercel changes to GitHub:
+
+```powershell
+cd D:\Agri-Vision
+git add .
+git commit -m "Update app"
+git push origin main
+```
+
+Push backend changes to Hugging Face:
+
+```powershell
+cd D:\Agri-Vision
+git push hf main
+```
+
+If Hugging Face rejects the first push from this folder because the histories differ, run this once:
+
+```powershell
+git push --force-with-lease hf main
+```
+
+After that one-time alignment, normal `git push hf main` should work from the same folder.
+
 ## Troubleshooting
 
 If Vercel returns `BACKEND_URL is not configured in Vercel`, add the `BACKEND_URL` environment variable in Vercel Project Settings and redeploy.
