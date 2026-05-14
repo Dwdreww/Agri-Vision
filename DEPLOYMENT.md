@@ -10,18 +10,13 @@ Set `Backend URL` to your deployed Flask backend, for example:
 https://your-agri-vision-backend.onrender.com
 ```
 
-If your backend uses an API key, enter it in the `API Key` field. This stores the key only in that browser's local storage.
-
 You can also set a default backend URL in `config.js`:
 
 ```js
 window.AGRI_VISION_CONFIG = {
-  apiBaseUrl: 'https://your-agri-vision-backend.onrender.com',
-  apiKey: ''
+  apiBaseUrl: 'https://your-agri-vision-backend.onrender.com'
 };
 ```
-
-Do not commit private provider keys or long-lived secrets to `config.js`. Anything in frontend code is visible to site visitors.
 
 ## Backend Environment Variables
 
@@ -29,10 +24,11 @@ Set these on your backend host:
 
 ```text
 PORT=5000
-AGRI_VISION_API_KEY=optional-shared-key
 AGRI_VISION_ALLOWED_ORIGINS=https://your-username.github.io
 ```
 
-If `AGRI_VISION_API_KEY` is set, `/predict` requires the same value in the frontend `API Key` field.
+If Flask serves the frontend directly, the app automatically uses the same backend origin and you do not need to enter a backend URL.
 
-For easier testing you can omit `AGRI_VISION_API_KEY`. By default, CORS allows frontend requests from any origin.
+If the frontend is on GitHub Pages, it cannot automatically know where your Flask backend is deployed. Set the backend URL in `config.js` or enter it once in `Backend Settings`.
+
+If you stop the Flask backend process, the frontend will show a backend connection error until you start the backend again.

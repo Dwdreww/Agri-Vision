@@ -517,7 +517,7 @@ input {
 .backend-settings {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: 1.4fr 0.8fr;
+  grid-template-columns: 1fr;
   gap: 12px;
   padding: 14px;
   border-radius: 18px;

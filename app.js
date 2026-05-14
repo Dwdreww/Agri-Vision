@@ -29,7 +29,6 @@ const backendStatusText = document.getElementById('backendStatusText');
 const backendSettingsBtn = document.getElementById('backendSettingsBtn');
 const backendSettings = document.getElementById('backendSettings');
 const backendUrlInput = document.getElementById('backendUrlInput');
-const apiKeyInput = document.getElementById('apiKeyInput');
 const saveBackendConfigBtn = document.getElementById('saveBackendConfigBtn');
 const clearBackendConfigBtn = document.getElementById('clearBackendConfigBtn');
 
@@ -58,8 +57,7 @@ function loadBackendConfig() {
   }
 
   return {
-    apiBaseUrl: normalizeBackendUrl(savedConfig.apiBaseUrl || runtimeBackendConfig.apiBaseUrl || ''),
-    apiKey: (savedConfig.apiKey || runtimeBackendConfig.apiKey || '').trim()
+    apiBaseUrl: normalizeBackendUrl(savedConfig.apiBaseUrl || runtimeBackendConfig.apiBaseUrl || '')
   };
 }
 
@@ -105,15 +103,13 @@ function getBackendLabel() {
 
 function updateBackendSettingsUI() {
   backendUrlInput.value = backendConfig.apiBaseUrl;
-  apiKeyInput.value = backendConfig.apiKey;
   backendStatusText.textContent = getBackendLabel();
   backendStatusDot.className = `backend-dot ${getBackendUrl() ? 'ready' : 'warning'}`;
 }
 
 function saveBackendConfig() {
   backendConfig = {
-    apiBaseUrl: normalizeBackendUrl(backendUrlInput.value),
-    apiKey: apiKeyInput.value.trim()
+    apiBaseUrl: normalizeBackendUrl(backendUrlInput.value)
   };
 
   localStorage.setItem(backendConfigStorageKey, JSON.stringify(backendConfig));
@@ -127,6 +123,16 @@ function clearBackendConfig() {
   backendConfig = loadBackendConfig();
   updateBackendSettingsUI();
   topStatus.textContent = 'Backend settings reset';
+}
+
+function getFriendlyBackendError(error) {
+  const message = error && error.message ? error.message : String(error);
+
+  if (message === 'Failed to fetch' || message === 'NetworkError when attempting to fetch resource.') {
+    return 'Backend is not reachable. Start the Flask backend again, then retry the analysis.';
+  }
+
+  return message;
 }
 
 function showPage(pageId) {
@@ -362,15 +368,8 @@ async function analyzeWithBackend() {
     const formData = new FormData();
     formData.append('image', selectedImageFile);
 
-    const headers = {};
-
-    if (backendConfig.apiKey) {
-      headers['X-API-Key'] = backendConfig.apiKey;
-    }
-
     const response = await fetch(buildBackendUrl('/predict'), {
       method: 'POST',
-      headers,
       body: formData
     });
 
@@ -403,10 +402,12 @@ async function analyzeWithBackend() {
 
     topStatus.textContent = `${data.status_label} result`;
   } catch (error) {
+    const errorMessage = getFriendlyBackendError(error);
+
     setResultBadge('Error', 'risk');
 
-    resultText.textContent = error.message;
-    recommendationText.textContent = 'Make sure the backend URL is correct, Flask is running, CORS is allowed, and the uploaded file is valid.';
+    resultText.textContent = errorMessage;
+    recommendationText.textContent = 'Make sure Flask is still running and the backend URL is correct. If you closed the backend terminal, start it again.';
 
     detectionMetric.textContent = '—';
     classMetric.textContent = 'Error';
@@ -415,7 +416,7 @@ async function analyzeWithBackend() {
 
     detectionList.innerHTML = `
       <div class="detection-empty">
-        ${error.message}
+        ${errorMessage}
       </div>
     `;
 

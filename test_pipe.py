@@ -7,9 +7,9 @@ from ultralytics import YOLO
 from PIL import Image
 
 # --- 1. Configuration ---
-YOLO_MODEL_PATH = r"C:\Pineapple Thesis\PINEAPPLE\yolov8.pt"
-EFFNET_MODEL_PATH = r"C:\Pineapple Thesis\PINEAPPLE\efficientnetB0.pth"
-TEST_IMAGE_PATH = r"C:\Pineapple Thesis\PINEAPPLE\pineappletest.png"
+YOLO_MODEL_PATH = r"C:\Agri-Vision\yolov8.pt"
+EFFNET_MODEL_PATH = r"C:\Agri-Vision\efficientnetB0.pth"
+TEST_IMAGE_PATH = r"C:\Agri-Vision\pineappletest.png"
 
 OUTPUT_IMAGE_PATH = r"C:\Pineapple Thesis\PINEAPPLE\pipeline_result.jpg"
 
