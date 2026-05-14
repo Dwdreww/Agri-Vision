@@ -1,0 +1,20 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+
+# Keep Vercel small. The real ML backend is deployed separately.
+*.pt
+*.pth
+*.png
+*.jpg
+*.jpeg
+test_pipe.py
+Dockerfile
+.dockerignore
+Procfile
+runtime.txt

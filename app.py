@@ -1,5 +1,8 @@
 import os
 import base64
+import tempfile
+
+os.environ.setdefault("YOLO_CONFIG_DIR", os.path.join(tempfile.gettempdir(), "ultralytics"))
 
 import cv2
 import numpy as np
@@ -18,10 +21,13 @@ from PIL import Image
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-YOLO_MODEL_PATH = os.path.join(BASE_DIR, "yolov8.pt")
-EFFNET_MODEL_PATH = os.path.join(BASE_DIR, "efficientnetB0.pth")
+YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", os.path.join(BASE_DIR, "yolov8.pt"))
+EFFNET_MODEL_PATH = os.getenv("EFFNET_MODEL_PATH", os.path.join(BASE_DIR, "efficientnetB0.pth"))
 
-YOLO_CONF_THRESHOLD = 0.15
+YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.15"))
+ANNOTATION_JPEG_QUALITY = int(os.getenv("ANNOTATION_JPEG_QUALITY", "82"))
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "15"))
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "")
 
 CLASS_NAMES = [
     "Crown_Rot_Disease",
@@ -43,7 +49,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # =========================
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+
+
+@app.after_request
+def add_cors_headers(response):
+    if FRONTEND_ORIGIN:
+        response.headers["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+
+    return response
 
 
 # =========================
@@ -114,7 +130,11 @@ def pretty_class_name(name):
 
 
 def encode_image_to_base64(img):
-    success, buffer = cv2.imencode(".jpg", img)
+    success, buffer = cv2.imencode(
+        ".jpg",
+        img,
+        [int(cv2.IMWRITE_JPEG_QUALITY), ANNOTATION_JPEG_QUALITY]
+    )
 
     if not success:
         raise ValueError("Failed to encode output image.")
@@ -335,6 +355,7 @@ def javascript():
 
 
 @app.route("/health")
+@app.route("/api/health")
 def health():
     return jsonify({
         "success": True,
@@ -344,7 +365,11 @@ def health():
 
 
 @app.route("/predict", methods=["POST"])
+@app.route("/api/predict", methods=["POST", "OPTIONS"])
 def predict():
+    if request.method == "OPTIONS":
+        return ("", 204)
+
     try:
         if "image" not in request.files:
             return jsonify({
@@ -382,8 +407,8 @@ def predict():
 
 if __name__ == "__main__":
     app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True,
+        host=os.getenv("HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "5000")),
+        debug=os.getenv("FLASK_DEBUG", "true").lower() == "true",
         use_reloader=False
     )

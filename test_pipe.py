@@ -7,13 +7,13 @@ from ultralytics import YOLO
 from PIL import Image
 
 # --- 1. Configuration ---
-YOLO_MODEL_PATH = r"C:\Agri-Vision\yolov8.pt"
-EFFNET_MODEL_PATH = r"C:\Agri-Vision\efficientnetB0.pth"
-TEST_IMAGE_PATH = r"C:\Agri-Vision\pineappletest.png"
+YOLO_MODEL_PATH = r"D:\Agri-Vision\yolov8.pt"
+EFFNET_MODEL_PATH = r"D:\Agri-Vision\efficientnetB0.pth"
+TEST_IMAGE_PATH = r"D:\Agri-Vision\pineappletest.png"
 
 OUTPUT_IMAGE_PATH = r"C:\Pineapple Thesis\PINEAPPLE\pipeline_result.jpg"
 
-YOLO_CONF_THRESHOLD = 0.15
+YOLO_CONF_THRESHOLD = 0.5
 
 CLASS_NAMES = [
     "Crown_Rot_Disease",

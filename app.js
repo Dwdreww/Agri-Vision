@@ -28,6 +28,10 @@ let selectedImageFile = null;
 let stream = null;
 let currentObjectUrl = null;
 
+const API_PREDICT_PATH = '/api/predict';
+const MAX_UPLOAD_DIMENSION = 1280;
+const IMAGE_JPEG_QUALITY = 0.82;
+
 let scanHistory = JSON.parse(localStorage.getItem('agriVisionBackendHistory') || '[]');
 
 function showPage(pageId) {
@@ -112,6 +116,98 @@ function clearCurrentSample() {
 
   renderEmptyPreview();
   resetAnalysisUI();
+}
+
+function jpegFileName(fileName) {
+  const baseName = fileName.replace(/\.[^/.]+$/, '');
+  return `${baseName || 'sample'}.jpg`;
+}
+
+function prepareImageForUpload(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith('image/')) {
+      reject(new Error('Please select a valid image file.'));
+      return;
+    }
+
+    const imageUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      const sourceWidth = image.naturalWidth || image.width;
+      const sourceHeight = image.naturalHeight || image.height;
+
+      if (!sourceWidth || !sourceHeight) {
+        URL.revokeObjectURL(imageUrl);
+        reject(new Error('The selected image could not be read.'));
+        return;
+      }
+
+      const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(sourceWidth, sourceHeight));
+      const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+      const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+      hiddenCanvas.width = targetWidth;
+      hiddenCanvas.height = targetHeight;
+
+      const context = hiddenCanvas.getContext('2d');
+      context.clearRect(0, 0, targetWidth, targetHeight);
+      context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+      hiddenCanvas.toBlob(blob => {
+        URL.revokeObjectURL(imageUrl);
+
+        if (!blob) {
+          reject(new Error('Failed to prepare image for upload.'));
+          return;
+        }
+
+        resolve(new File(
+          [blob],
+          jpegFileName(file.name),
+          {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          }
+        ));
+      }, 'image/jpeg', IMAGE_JPEG_QUALITY);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error('The selected image format is not supported by this browser.'));
+    };
+
+    image.src = imageUrl;
+  });
+}
+
+async function loadSample(file) {
+  analyzeBtn.disabled = true;
+  uploadBtn.disabled = true;
+  cameraBtn.disabled = true;
+  clearBtn.disabled = false;
+
+  topStatus.textContent = 'Preparing image';
+  setResultBadge('Preparing', 'ready');
+  resultText.textContent = 'Optimizing image for backend analysis...';
+  recommendationText.textContent = 'Large photos are resized before upload so the deployed app stays responsive.';
+
+  try {
+    const preparedFile = await prepareImageForUpload(file);
+    stopCamera();
+    showLocalPreview(preparedFile);
+  } catch (error) {
+    setResultBadge('Error', 'risk');
+    resultText.textContent = error.message;
+    recommendationText.textContent = 'Use a JPG or PNG image that the browser can read.';
+    topStatus.textContent = 'Image error';
+    fileInput.value = '';
+  } finally {
+    uploadBtn.disabled = false;
+    cameraBtn.disabled = false;
+    clearBtn.disabled = !selectedImageFile;
+  }
 }
 
 function showLocalPreview(file) {
@@ -263,7 +359,7 @@ async function analyzeWithBackend() {
     const formData = new FormData();
     formData.append('image', selectedImageFile);
 
-    const response = await fetch('/predict', {
+    const response = await fetch(API_PREDICT_PATH, {
       method: 'POST',
       body: formData
     });
@@ -294,7 +390,7 @@ async function analyzeWithBackend() {
     setResultBadge('Error', 'risk');
 
     resultText.textContent = error.message;
-    recommendationText.textContent = 'Make sure Flask is running, model paths are correct, and the uploaded file is a valid image.';
+    recommendationText.textContent = 'Make sure the deployed backend URL is configured in Vercel and the uploaded file is a valid image.';
 
     detectionMetric.textContent = '—';
     classMetric.textContent = 'Error';
@@ -329,13 +425,13 @@ uploadBtn.addEventListener('click', () => {
   fileInput.click();
 });
 
-fileInput.addEventListener('change', event => {
+fileInput.addEventListener('change', async event => {
   const file = event.target.files[0];
 
   if (!file) return;
 
   stopCamera();
-  showLocalPreview(file);
+  await loadSample(file);
 });
 
 cameraBtn.addEventListener('click', async () => {
@@ -391,7 +487,7 @@ cameraBtn.addEventListener('click', async () => {
       const context = hiddenCanvas.getContext('2d');
       context.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
 
-      hiddenCanvas.toBlob(blob => {
+      hiddenCanvas.toBlob(async blob => {
         if (!blob) {
           setResultBadge('Error', 'risk');
 
@@ -403,15 +499,15 @@ cameraBtn.addEventListener('click', async () => {
 
         const capturedFile = new File(
           [blob],
-          'camera_sample.png',
+          'camera_sample.jpg',
           {
-            type: 'image/png'
+            type: 'image/jpeg'
           }
         );
 
         stopCamera();
-        showLocalPreview(capturedFile);
-      }, 'image/png');
+        await loadSample(capturedFile);
+      }, 'image/jpeg', IMAGE_JPEG_QUALITY);
     });
   } catch (error) {
     setResultBadge('Error', 'risk');

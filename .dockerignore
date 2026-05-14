@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.vercel
+.vercelignore
+node_modules
+npm-debug.log
+DEPLOYMENT.md
+
+# Local-only generated output.
+pipeline_result.jpg
