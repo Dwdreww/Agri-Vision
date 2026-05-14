@@ -21,6 +21,14 @@ YOLO_MODEL_PATH = os.path.join(BASE_DIR, "yolov8.pt")
 EFFNET_MODEL_PATH = os.path.join(BASE_DIR, "efficientnetB0.pth")
 
 YOLO_CONF_THRESHOLD = 0.15
+API_KEY = os.environ.get("AGRI_VISION_API_KEY", "").strip()
+
+allowed_origins_raw = os.environ.get("AGRI_VISION_ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in allowed_origins_raw.split(",")
+    if origin.strip()
+]
 
 CLASS_NAMES = [
     "Crown_Rot_Disease",
@@ -43,6 +51,43 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
+
+
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get("Origin")
+
+    if origin:
+        normalized_origin = origin.rstrip("/")
+
+        if "*" in ALLOWED_ORIGINS or normalized_origin in ALLOWED_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-API-Key"
+    response.headers["Access-Control-Max-Age"] = "86400"
+
+    return response
+
+
+@app.before_request
+def require_api_key():
+    if request.method == "OPTIONS":
+        return None
+
+    if not API_KEY or request.endpoint != "predict":
+        return None
+
+    provided_key = request.headers.get("X-API-Key", "").strip()
+
+    if provided_key != API_KEY:
+        return jsonify({
+            "success": False,
+            "error": "Invalid or missing API key."
+        }), 401
+
+    return None
 
 
 # =========================
@@ -333,12 +378,18 @@ def javascript():
     return send_from_directory(BASE_DIR, "app.js")
 
 
+@app.route("/config.js")
+def frontend_config():
+    return send_from_directory(BASE_DIR, "config.js")
+
+
 @app.route("/health")
 def health():
     return jsonify({
         "success": True,
         "message": "AGRI-VISION backend is running.",
-        "device": str(device)
+        "device": str(device),
+        "api_key_required": bool(API_KEY)
     })
 
 
@@ -380,9 +431,13 @@ def predict():
 
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "5000"))
+    host = os.environ.get("HOST", "0.0.0.0")
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+
     app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True,
+        host=host,
+        port=port,
+        debug=debug,
         use_reloader=False
     )

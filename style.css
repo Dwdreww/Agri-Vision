@@ -462,6 +462,102 @@ input {
   color: #15200d;
 }
 
+.backend-panel {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(19, 17, 11, 0.08);
+}
+
+.backend-summary {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  color: rgba(31, 25, 16, 0.78);
+  font-weight: 900;
+}
+
+.backend-summary p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backend-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d2b464;
+  box-shadow: 0 0 12px rgba(210, 180, 100, 0.55);
+}
+
+.backend-dot.ready {
+  background: var(--green-deep);
+  box-shadow: 0 0 12px rgba(127, 162, 67, 0.65);
+}
+
+.backend-dot.warning {
+  background: #d68a44;
+  box-shadow: 0 0 12px rgba(214, 138, 68, 0.65);
+}
+
+.dark-mini-btn {
+  flex: 0 0 auto;
+  background: #17130d;
+  color: var(--cream);
+}
+
+.backend-settings {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(19, 17, 11, 0.08);
+}
+
+.backend-settings[hidden] {
+  display: none;
+}
+
+.backend-settings label {
+  display: grid;
+  gap: 6px;
+  color: rgba(31, 25, 16, 0.78);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.backend-settings input {
+  width: 100%;
+  border: 1px solid rgba(31, 25, 16, 0.16);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 247, 224, 0.86);
+  color: var(--text-dark);
+  outline: none;
+}
+
+.backend-settings input:focus {
+  border-color: var(--green-deep);
+  box-shadow: 0 0 0 3px rgba(127, 162, 67, 0.18);
+}
+
+.backend-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 /* RESULT PANEL */
 .results-panel {
   display: grid;
@@ -818,6 +914,15 @@ input {
     grid-template-columns: 1fr 1fr;
   }
 
+  .backend-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .backend-settings {
+    grid-template-columns: 1fr;
+  }
+
   .metrics-panel {
     grid-template-columns: 1fr;
   }
@@ -841,6 +946,10 @@ input {
 
 @media (max-width: 480px) {
   .action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backend-actions {
     grid-template-columns: 1fr;
   }
 
