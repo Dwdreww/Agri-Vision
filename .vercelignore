@@ -8,6 +8,12 @@ __pycache__
 .pytest_cache
 
 # Keep Vercel small. The real ML backend is deployed separately.
+AgriVision
+AgriVision/
+app.py
+requirements.txt
+DEPLOYMENT.md
+README.md
 *.pt
 *.pth
 *.png
