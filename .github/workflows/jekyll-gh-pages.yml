@@ -30,6 +30,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Generate frontend backend config
+        run: |
+          cat > config.js <<'EOF'
+          window.AGRI_VISION_CONFIG = {
+            apiBaseUrl: ${{ toJson(vars.AGRI_VISION_API_BASE_URL || '') }},
+            apiKey: ${{ toJson(secrets.AGRI_VISION_API_KEY || '') }}
+          };
+          EOF
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:

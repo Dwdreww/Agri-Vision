@@ -1,38 +1,64 @@
 # AGRI-VISION Deployment
 
-## Frontend on GitHub Pages
+## Why GitHub Pages Needs A Backend URL
 
-GitHub Pages can host the frontend, but it cannot run the Flask Python backend. Deploy the backend on a Python host such as Render, Railway, Fly.io, or another server.
+GitHub Pages only hosts static frontend files. It cannot run `app.py`, load the model files, or handle `/predict`.
 
-After the backend is deployed, set `apiBaseUrl` in `config.js` to the backend URL:
+Local Flask works because `http://127.0.0.1:5000` serves both the frontend and backend. On GitHub Pages, the frontend must call a separate public Flask backend URL.
 
-```text
-https://your-agri-vision-backend.onrender.com
-```
+## Backend
 
-```js
-window.AGRI_VISION_CONFIG = {
-  apiBaseUrl: 'https://your-agri-vision-backend.onrender.com',
-  apiKey: 'same-value-as-AGRI_VISION_API_KEY'
-};
-```
+Deploy this repository as a Python web service on a host such as Render, Railway, or Fly.io.
 
-The app no longer shows a backend URL or API-key input on the page. It reads these values automatically from `config.js`.
-
-The `apiKey` value in `config.js` is visible to anyone who opens the site. Use it only as a simple app access token, not as a private provider key.
-
-## Backend Environment Variables
-
-Set these on your backend host:
+This repo includes:
 
 ```text
-PORT=5000
-AGRI_VISION_API_KEY=same-value-as-config-js-apiKey
-AGRI_VISION_ALLOWED_ORIGINS=https://your-username.github.io
+Procfile
+render.yaml
+requirements.txt
 ```
 
-If Flask serves the frontend directly, the app automatically uses the same backend origin and `apiBaseUrl` can stay empty.
+The backend start command is:
 
-If the frontend is on GitHub Pages, `apiBaseUrl` must be set in `config.js` because a static GitHub Pages site cannot discover your Flask backend URL by itself.
+```text
+gunicorn app:app --bind 0.0.0.0:$PORT --timeout 180
+```
 
-If you stop the Flask backend process, the frontend will show a backend connection error until you start the backend again.
+Set these backend environment variables:
+
+```text
+AGRI_VISION_API_KEY=choose-a-simple-app-token
+AGRI_VISION_ALLOWED_ORIGINS=https://dwdreww.github.io
+```
+
+After deploy, test:
+
+```text
+https://your-backend-url/health
+```
+
+## Frontend On GitHub Pages
+
+The GitHub Pages workflow now generates `config.js` during deployment.
+
+Set these in GitHub:
+
+```text
+Settings -> Secrets and variables -> Actions -> Variables
+AGRI_VISION_API_BASE_URL=https://your-backend-url
+```
+
+```text
+Settings -> Secrets and variables -> Actions -> Secrets
+AGRI_VISION_API_KEY=same-value-as-backend
+```
+
+Then push to `main` and wait for the Pages workflow to finish.
+
+The deployed page will not show backend settings. It reads the backend URL and API key automatically from the generated `config.js`.
+
+## Important
+
+The API key in frontend JavaScript is visible in the browser. Use it only as a simple app access token, not as a private provider secret.
+
+If the GitHub Pages UI looks older than local, hard refresh with `Ctrl + F5` after the workflow finishes.

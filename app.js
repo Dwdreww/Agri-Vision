@@ -65,7 +65,7 @@ function buildBackendUrl(path) {
   const baseUrl = getBackendUrl();
 
   if (!baseUrl) {
-    throw new Error('Backend deployment URL is missing. Set apiBaseUrl in config.js to your Flask backend URL.');
+    throw new Error('Backend URL is missing in config.js. GitHub Pages cannot run Flask, so deploy app.py on a Python host and set apiBaseUrl to that backend URL.');
   }
 
   return `${baseUrl}${path}`;
@@ -75,7 +75,7 @@ function getFriendlyBackendError(error) {
   const message = error && error.message ? error.message : String(error);
 
   if (message === 'Failed to fetch' || message === 'NetworkError when attempting to fetch resource.') {
-    return 'Backend is not reachable. Start the Flask backend again, then retry the analysis.';
+    return 'Backend is not reachable. Check that the deployed Flask backend is running, the config.js apiBaseUrl is correct, and CORS allows this site.';
   }
 
   return message;

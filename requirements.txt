@@ -1,8 +1,9 @@
 torch
 torchvision
 ultralytics
-opencv-python
+opencv-python-headless
 pillow
 flask
+gunicorn
 numpy
 

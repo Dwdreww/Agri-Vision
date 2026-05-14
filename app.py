@@ -1,5 +1,7 @@
 import os
 import base64
+from urllib.parse import urlsplit
+
 import cv2
 import numpy as np
 import torch
@@ -23,9 +25,23 @@ EFFNET_MODEL_PATH = os.path.join(BASE_DIR, "efficientnetB0.pth")
 YOLO_CONF_THRESHOLD = 0.15
 API_KEY = os.environ.get("AGRI_VISION_API_KEY", "").strip()
 
+def normalize_origin(origin):
+    origin = origin.strip().rstrip("/")
+
+    if origin == "*":
+        return origin
+
+    parsed = urlsplit(origin)
+
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+
+    return origin
+
+
 allowed_origins_raw = os.environ.get("AGRI_VISION_ALLOWED_ORIGINS", "*")
 ALLOWED_ORIGINS = [
-    origin.strip().rstrip("/")
+    normalize_origin(origin)
     for origin in allowed_origins_raw.split(",")
     if origin.strip()
 ]
@@ -58,7 +74,7 @@ def add_cors_headers(response):
     origin = request.headers.get("Origin")
 
     if origin:
-        normalized_origin = origin.rstrip("/")
+        normalized_origin = normalize_origin(origin)
 
         if "*" in ALLOWED_ORIGINS or normalized_origin in ALLOWED_ORIGINS:
             response.headers["Access-Control-Allow-Origin"] = origin
