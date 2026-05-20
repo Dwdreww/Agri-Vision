@@ -572,6 +572,67 @@ input {
   min-height: 160px;
 }
 
+.preprocessing-panel {
+  min-height: 180px;
+}
+
+.preprocess-score {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(182, 228, 93, 0.14);
+  color: var(--green);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.preprocess-list {
+  display: grid;
+  gap: 10px;
+}
+
+.preprocess-empty,
+.preprocess-summary,
+.preprocess-item {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 247, 224, 0.06);
+  border: 1px solid rgba(255, 247, 224, 0.10);
+  color: rgba(255, 247, 224, 0.70);
+}
+
+.preprocess-summary strong,
+.preprocess-item strong {
+  color: var(--green);
+}
+
+.preprocess-summary p,
+.preprocess-item p {
+  margin: 5px 0 0;
+  color: rgba(255, 247, 224, 0.66);
+  line-height: 1.55;
+}
+
+.preprocess-item {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.preprocess-item span {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(182, 228, 93, 0.14);
+  color: var(--green);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
 .detection-list {
   display: grid;
   gap: 10px;
@@ -696,7 +757,7 @@ input {
 .about-grid {
   margin-top: 22px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 

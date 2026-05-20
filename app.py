@@ -14,6 +14,8 @@ from torchvision import transforms, models
 from ultralytics import YOLO
 from PIL import Image
 
+from preprocessing import preprocess_pineapple_image
+
 
 # =========================
 # 1. CONFIGURATION
@@ -241,7 +243,19 @@ def run_pipeline(file_bytes):
     img = decode_uploaded_image(file_bytes)
     image_height, image_width = img.shape[:2]
 
-    results = yolo_model(img, verbose=False)[0]
+    preprocessed = preprocess_pineapple_image(img)
+
+    # PRE-PROCESSING OUTPUT USED BY YOLO:
+    # The model input keeps the pineapple sharp, improves contrast, reduces
+    # noise, and softens non-pineapple background areas.
+    yolo_input = preprocessed["model_input"]
+
+    # PRE-PROCESSING OUTPUT USED BY EFFICIENTNET:
+    # Crops are taken from the contrast-enhanced image so disease color and
+    # texture remain visible for classification.
+    classification_source = preprocessed["contrast_enhanced"]
+
+    results = yolo_model(yolo_input, verbose=False)[0]
 
     detections = []
 
@@ -261,7 +275,7 @@ def run_pipeline(file_bytes):
         if x2 <= x1 or y2 <= y1:
             continue
 
-        crop = img[y1:y2, x1:x2]
+        crop = classification_source[y1:y2, x1:x2]
 
         if crop.size == 0:
             continue
@@ -330,6 +344,12 @@ def run_pipeline(file_bytes):
         "image_height": image_height,
         "detection_count": len(detections),
         "detections": detections,
+        "preprocessing_steps": preprocessed["steps"],
+        "preprocessing_summary": {
+            "segmentation_mask_coverage_percent": preprocessed["mask_coverage_percent"],
+            "dark_spot_candidate_percent": preprocessed["dark_spot_coverage_percent"],
+            "segmentation_used_fallback": preprocessed["segmentation_used_fallback"]
+        },
         "annotated_image": annotated_image,
         **summary
     }

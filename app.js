@@ -19,6 +19,8 @@ const classMetric = document.getElementById('classMetric');
 const confidenceMetric = document.getElementById('confidenceMetric');
 const deviceMetric = document.getElementById('deviceMetric');
 const detectionList = document.getElementById('detectionList');
+const segmentationMetric = document.getElementById('segmentationMetric');
+const preprocessingList = document.getElementById('preprocessingList');
 
 const historyText = document.getElementById('historyText');
 const historyList = document.getElementById('historyList');
@@ -83,8 +85,10 @@ function resetAnalysisUI() {
   classMetric.textContent = '—';
   confidenceMetric.textContent = '—';
   deviceMetric.textContent = '—';
+  segmentationMetric.textContent = 'Mask —';
 
   detectionList.innerHTML = `<div class="detection-empty">No detections yet.</div>`;
+  preprocessingList.innerHTML = `<div class="preprocess-empty">Pre-processing details will appear after analysis.</div>`;
 
   topStatus.textContent = 'Waiting for sample';
 }
@@ -238,8 +242,10 @@ function showLocalPreview(file) {
   classMetric.textContent = '—';
   confidenceMetric.textContent = '—';
   deviceMetric.textContent = '—';
+  segmentationMetric.textContent = 'Mask —';
 
   detectionList.innerHTML = `<div class="detection-empty">No backend result yet.</div>`;
+  preprocessingList.innerHTML = `<div class="preprocess-empty">No backend result yet.</div>`;
 
   topStatus.textContent = 'Sample loaded';
 }
@@ -279,6 +285,53 @@ function renderDetections(detections) {
       </div>
     `;
   }).join('');
+}
+
+function renderPreprocessing(data) {
+  const steps = data.preprocessing_steps || [];
+  const summary = data.preprocessing_summary || {};
+  const maskCoverage = summary.segmentation_mask_coverage_percent;
+  const darkSpotCoverage = summary.dark_spot_candidate_percent;
+
+  if (typeof maskCoverage === 'number') {
+    segmentationMetric.textContent = `Mask ${maskCoverage}%`;
+  } else {
+    segmentationMetric.textContent = 'Mask —';
+  }
+
+  if (!steps.length) {
+    preprocessingList.innerHTML = `
+      <div class="preprocess-empty">
+        No pre-processing details were returned by the backend.
+      </div>
+    `;
+    return;
+  }
+
+  const fallbackText = summary.segmentation_used_fallback
+    ? 'Segmentation fallback used because the color mask was too small.'
+    : 'Segmentation mask was used normally.';
+
+  const summaryCard = `
+    <div class="preprocess-summary">
+      <strong>Segmentation Coverage: ${maskCoverage ?? '—'}%</strong>
+      <p>Dark Spot Candidate Area: ${darkSpotCoverage ?? '—'}% | ${fallbackText}</p>
+    </div>
+  `;
+
+  const stepCards = steps.map(step => {
+    return `
+      <div class="preprocess-item">
+        <span>${step.order}</span>
+        <div>
+          <strong>${step.name}</strong>
+          <p>${step.used_for}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  preprocessingList.innerHTML = summaryCard + stepCards;
 }
 
 function saveHistory(data) {
@@ -348,10 +401,17 @@ async function analyzeWithBackend() {
   classMetric.textContent = '...';
   confidenceMetric.textContent = '...';
   deviceMetric.textContent = '...';
+  segmentationMetric.textContent = 'Mask ...';
 
   detectionList.innerHTML = `
     <div class="detection-empty">
       Running YOLO + EfficientNet pipeline...
+    </div>
+  `;
+
+  preprocessingList.innerHTML = `
+    <div class="preprocess-empty">
+      Running grayscale conversion, Gaussian blur, contrast enhancement, and segmentation...
     </div>
   `;
 
@@ -383,6 +443,7 @@ async function analyzeWithBackend() {
     deviceMetric.textContent = data.device;
 
     renderDetections(data.detections);
+    renderPreprocessing(data);
     saveHistory(data);
 
     topStatus.textContent = `${data.status_label} result`;
@@ -396,10 +457,17 @@ async function analyzeWithBackend() {
     classMetric.textContent = 'Error';
     confidenceMetric.textContent = '—';
     deviceMetric.textContent = '—';
+    segmentationMetric.textContent = 'Mask —';
 
     detectionList.innerHTML = `
       <div class="detection-empty">
         ${error.message}
+      </div>
+    `;
+
+    preprocessingList.innerHTML = `
+      <div class="preprocess-empty">
+        Pre-processing details unavailable because analysis failed.
       </div>
     `;
 
