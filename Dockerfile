@@ -17,7 +17,8 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
     && pip install -r requirements.txt
 
-COPY . .
+COPY app.py preprocessing.py yolov8.pt efficientnetB0.pth ./
+RUN python -c "from pathlib import Path; assert all(Path(p).stat().st_size > 1024 for p in ('yolov8.pt', 'efficientnetB0.pth')), 'Fetch Git LFS model weights before building the backend image'"
 
 EXPOSE 7860
 

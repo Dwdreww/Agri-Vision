@@ -1,6 +1,8 @@
 import os
 import base64
+import json
 import tempfile
+import threading
 
 os.environ.setdefault("YOLO_CONFIG_DIR", os.path.join(tempfile.gettempdir(), "ultralytics"))
 
@@ -9,10 +11,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from torchvision import transforms, models
 from ultralytics import YOLO
 from PIL import Image
+import firebase_admin
+from firebase_admin import auth, credentials
 
 from preprocessing import preprocess_pineapple_image
 
@@ -30,6 +34,8 @@ YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.15"))
 ANNOTATION_JPEG_QUALITY = int(os.getenv("ANNOTATION_JPEG_QUALITY", "82"))
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "15"))
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "")
+MODEL_VERSION = os.getenv("MODEL_VERSION", "unversioned").strip() or "unversioned"
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "").strip()
 
 CLASS_NAMES = [
     "Crown_Rot_Disease",
@@ -52,13 +58,78 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+_firebase_app = None
+_firebase_app_lock = threading.Lock()
+
+
+def get_firebase_app():
+    """Initialize the Admin SDK once using a secret or application credentials."""
+    global _firebase_app
+    if _firebase_app is None:
+        with _firebase_app_lock:
+            if _firebase_app is None:
+                if not FIREBASE_PROJECT_ID:
+                    raise RuntimeError("FIREBASE_PROJECT_ID must be configured")
+                options = {"projectId": FIREBASE_PROJECT_ID}
+                service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+                if service_account_json is not None:
+                    service_account = json.loads(service_account_json)
+                    if (
+                        not isinstance(service_account, dict)
+                        or service_account.get("project_id") != FIREBASE_PROJECT_ID
+                    ):
+                        raise ValueError("Firebase credential project does not match FIREBASE_PROJECT_ID")
+                    _firebase_app = firebase_admin.initialize_app(
+                        credential=credentials.Certificate(service_account),
+                        options=options
+                    )
+                else:
+                    _firebase_app = firebase_admin.initialize_app(options=options)
+    return _firebase_app
+
+
+def require_firebase_user():
+    """Return the decoded ID token or a Flask response for an auth failure."""
+    parts = request.headers.get("Authorization", "").split()
+    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1]:
+        return None, (jsonify({
+            "success": False,
+            "error": "Sign in to scan an image."
+        }), 401)
+
+    try:
+        firebase_app = get_firebase_app()
+    except Exception as error:
+        app.logger.error("Firebase Admin initialization failed: %s", type(error).__name__)
+        return None, (jsonify({
+            "success": False,
+            "error": "Authentication service is unavailable. Please try again later."
+        }), 503)
+
+    try:
+        decoded = auth.verify_id_token(parts[1], app=firebase_app, check_revoked=True)
+    except (auth.InvalidIdTokenError, auth.ExpiredIdTokenError,
+            auth.RevokedIdTokenError, auth.UserDisabledError,
+            auth.UserNotFoundError, ValueError):
+        return None, (jsonify({
+            "success": False,
+            "error": "Your session has expired or is invalid. Please sign in again."
+        }), 401)
+    except Exception as error:
+        app.logger.error("Firebase ID token verification unavailable: %s", type(error).__name__)
+        return None, (jsonify({
+            "success": False,
+            "error": "Authentication service is unavailable. Please try again later."
+        }), 503)
+
+    return decoded, None
 
 
 @app.after_request
 def add_cors_headers(response):
     if FRONTEND_ORIGIN:
         response.headers["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
 
     return response
@@ -339,6 +410,7 @@ def run_pipeline(file_bytes):
 
     return {
         "success": True,
+        "model_version": MODEL_VERSION,
         "device": str(device),
         "image_width": image_width,
         "image_height": image_height,
@@ -361,17 +433,7 @@ def run_pipeline(file_bytes):
 
 @app.route("/")
 def index():
-    return send_from_directory(BASE_DIR, "index.html")
-
-
-@app.route("/style.css")
-def css():
-    return send_from_directory(BASE_DIR, "style.css")
-
-
-@app.route("/app.js")
-def javascript():
-    return send_from_directory(BASE_DIR, "app.js")
+    return jsonify({"service": "AGRI-VISION prediction API"})
 
 
 @app.route("/health")
@@ -380,15 +442,20 @@ def health():
     return jsonify({
         "success": True,
         "message": "AGRI-VISION backend is running.",
+        "scanner_ready": bool(FIREBASE_PROJECT_ID),
         "device": str(device)
     })
 
 
-@app.route("/predict", methods=["POST"])
+@app.route("/predict", methods=["POST", "OPTIONS"])
 @app.route("/api/predict", methods=["POST", "OPTIONS"])
 def predict():
     if request.method == "OPTIONS":
         return ("", 204)
+
+    _, auth_error = require_firebase_user()
+    if auth_error is not None:
+        return auth_error
 
     try:
         if "image" not in request.files:

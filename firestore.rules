@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function profilePath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function activeOwner(uid) {
+      return isOwner(uid)
+        && exists(profilePath(uid))
+        && get(profilePath(uid)).data.get('deletionInProgress', false) != true;
+    }
+
+    function unchangedManagedScanFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'shareForResearch', 'researchResultId', 'researchSharedAt', 'deletionInProgress'
+      ]);
+    }
+
+    function unchangedSharedResearchFields() {
+      return resource.data.get('shareForResearch', false) != true
+        || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'createdAt', 'statusType', 'topClass', 'topConfidence',
+          'detectionCount', 'modelVersion', 'userCondition'
+        ]);
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && !request.resource.data.keys().hasAny(['deletionInProgress']);
+      allow update: if activeOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deletionInProgress'])
+        && (
+          resource.data.get('historyImportedAt', null) == null
+          || request.resource.data.get('historyImportedAt', null) == resource.data.get('historyImportedAt', null)
+        );
+      allow delete: if false;
+
+      match /farms/{farmId} {
+        allow read: if isOwner(uid);
+        allow create, update: if activeOwner(uid);
+        allow delete: if false;
+      }
+
+      match /plots/{plotId} {
+        allow read: if isOwner(uid);
+        allow create, update: if activeOwner(uid);
+        allow delete: if false;
+      }
+
+      match /scans/{scanId} {
+        allow read: if isOwner(uid);
+        allow create: if activeOwner(uid)
+          && request.resource.data.get('shareForResearch', false) == false
+          && !request.resource.data.keys().hasAny([
+            'researchResultId', 'researchSharedAt', 'deletionInProgress'
+          ]);
+        allow update: if activeOwner(uid)
+          && resource.data.get('deletionInProgress', false) != true
+          && unchangedManagedScanFields()
+          && unchangedSharedResearchFields();
+        allow delete: if false;
+      }
+
+      match /observations/{observationId} {
+        allow read: if isOwner(uid);
+        allow create, update, delete: if activeOwner(uid);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isOwner(uid);
+        allow create, update, delete: if activeOwner(uid);
+      }
+
+      match /{other=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /researchResults/{resultId} {
+      allow read: if request.auth != null && request.auth.token.researcher == true;
+      allow write: if false;
+    }
+
+    match /{other=**} {
+      allow read, write: if false;
+    }
+  }
+}

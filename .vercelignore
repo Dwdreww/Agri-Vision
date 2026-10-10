@@ -5,6 +5,16 @@ __pycache__
 *.pyo
 *.pyd
 .pytest_cache
+functions
+scripts
+docs
+firebase.json
+firestore.rules
+firestore.indexes.json
+storage.rules
+storage.cors.json
+*service-account*.json
+*serviceAccount*.json
 
 # Keep Vercel small. The real ML backend is deployed separately.
 app.py

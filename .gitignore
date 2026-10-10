@@ -5,6 +5,17 @@ __pycache__/
 .vercel/
 node_modules/
 npm-debug.log*
+firebase-debug.log*
+firestore-debug.log
+storage-debug.log
+ui-debug.log
+.firebase/
+dist/
+.env
+.env.*
+!.env.example
+*service-account*.json
+*serviceAccount*.json
 
 # Local clone of the Hugging Face Space repo.
 AgriVision/

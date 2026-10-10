@@ -22,3 +22,23 @@ AgriVision/
 
 node_modules
 npm-debug.log
+dist
+.env
+.env.*
+*service-account*.json
+*serviceAccount*.json
+src
+functions
+scripts
+docs
+package.json
+package-lock.json
+vite.config.js
+firebase.json
+firestore.rules
+firestore.indexes.json
+storage.rules
+storage.cors.json
+index.html
+app.js
+style.css

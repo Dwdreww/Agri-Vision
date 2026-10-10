@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function profileActive(uid) {
+      return firestore.exists(/databases/(default)/documents/users/$(uid))
+        && firestore.get(/databases/(default)/documents/users/$(uid)).data.get('deletionInProgress', false) != true;
+    }
+
+    function scanNotDeleting(uid, scanId) {
+      return !firestore.exists(/databases/(default)/documents/users/$(uid)/scans/$(scanId))
+        || firestore.get(/databases/(default)/documents/users/$(uid)/scans/$(scanId)).data.get('deletionInProgress', false) != true;
+    }
+
+    function scanDoesNotExist(uid, scanId) {
+      return !firestore.exists(/databases/(default)/documents/users/$(uid)/scans/$(scanId));
+    }
+
+    match /users/{uid}/scans/{scanId}/{imageName} {
+      allow read: if request.auth != null && request.auth.uid == uid
+        && imageName in ['prepared.jpg', 'annotated.jpg'];
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && imageName in ['prepared.jpg', 'annotated.jpg']
+        && profileActive(uid)
+        && scanNotDeleting(uid, scanId)
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
+      // A failed initial save can clean up its upload. Persisted scan photos
+      // are removed by deleteScan so their record and research copy stay in sync.
+      allow delete: if request.auth != null && request.auth.uid == uid
+        && imageName in ['prepared.jpg', 'annotated.jpg']
+        && profileActive(uid)
+        && scanDoesNotExist(uid, scanId);
+    }
+
+    match /{other=**} {
+      allow read, write: if false;
+    }
+  }
+}
