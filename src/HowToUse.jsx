@@ -27,7 +27,7 @@ export function Introduction({ onClose }) {
       <div className="introduction-top"><span className="eyebrow">WELCOME TO PINEAPPLE HEALTH</span><button className="icon-button" type="button" onClick={onClose} aria-label="Skip introduction"><X size={19} /></button></div>
       <div className="introduction-progress" aria-label={`Step ${step + 1} of ${introSteps.length}`}>{introSteps.map((_, index) => <span key={index} className={index <= step ? 'complete' : ''} />)}</div>
       <div className="introduction-content" aria-live="polite" aria-atomic="true"><span className="help-step-icon"><Icon size={30} /></span><h2 id="introduction-title">{title}</h2><p id="introduction-description">{text}</p></div>
-      <p className="quiet-caption">You can find this introduction again under Reference → How to use.</p>
+      <p className="quiet-caption">Open the workspace menu to find How to use and replay this introduction.</p>
       <div className="modal-actions"><button className="button button-text" type="button" onClick={onClose}>Skip for now</button>{step > 0 && <button className="button button-soft" type="button" onClick={() => setStep(value => value - 1)}>Back</button>}<button className="button button-primary" type="button" onClick={() => step === introSteps.length - 1 ? onClose() : setStep(value => value + 1)}>{step === introSteps.length - 1 ? 'Start exploring' : 'Next'}<ArrowRight size={16} /></button></div>
     </section>
   </div>;

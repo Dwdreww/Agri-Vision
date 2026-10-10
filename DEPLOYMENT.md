@@ -10,7 +10,7 @@ Keep `VITE_WORKSPACE_MODE=local` in `.env`. The launcher supplies `FIREBASE_PROJ
 
 Photos are stored at `~/.local/share/agri-vision/agri-vision-pilot/photos/{uid}/scans/{scanId}/`. Firebase stores the records and consent state. Research sharing/revocation and scan/account deletion execute the same handlers as the future cloud callables. A scan's `storageProvider` records whether its photos belong to this local service or Firebase Storage. Remove a scan through the service where its photos are stored.
 
-The Mac and its local processes must remain available to view photos or scan. Accounts and Firestore records require internet access. This is a local pilot, with no public Vercel/container deployment completed. Do not upload the owner CLI credential to a hosting provider, expose these development services publicly, or deploy a local-mode frontend expecting a public workspace API.
+The Mac and its local processes must remain available to view local photos or scan. Accounts and Firestore records require internet access. The existing Vercel frontend was released on October 10 at https://agri-vision-eosin.vercel.app/ in monitoring mode. Public inference and cloud photo storage remain pending. Do not upload the owner CLI credential to a hosting provider, expose these development services publicly, or deploy a local-mode frontend expecting a public workspace API.
 
 Use `VITE_WORKSPACE_MODE=monitoring` for an accounts-and-records-only frontend without a photo service. For a later full Firebase cloud rollout, set `VITE_WORKSPACE_MODE=firebase` after deploying Storage and Functions, and configure production backend credentials independently.
 

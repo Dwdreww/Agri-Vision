@@ -13,7 +13,6 @@ import { useDialog } from './use-dialog';
 import { readableError } from './utils';
 import { useWorkspaceServices } from './services';
 import { retryAuthConnection } from './auth-retry';
-import { FieldIllustration, PineappleMark } from './FieldArt';
 
 const emptyData = { profile: null, farms: [], plots: [], scans: [], observations: [], tasks: [], ready: false };
 const mainNavigation = [
@@ -57,8 +56,8 @@ function AuthPage({ onNotify }) {
   }
 
   return <div className="auth-page">
-    <div className="auth-visual"><Brand /><div className="auth-visual-copy"><span className="eyebrow">FOR THE PEOPLE WHO GROW</span><h1>Closer to<br /><em>your crop.</em></h1><p>A place for your pineapple fields, small observations, and the care that makes a difference.</p></div><FieldIllustration className="auth-field-art" /><div className="auth-visual-bottom"><span>Observe. Learn. Care.</span><span>Pineapple Health / Field journal</span></div></div>
-    <main className="auth-main"><div className="auth-card"><div className="auth-mobile-brand"><Brand /></div><span className="eyebrow">YOUR FARM JOURNAL</span><h2>{mode === 'register' ? 'Create your account' : mode === 'reset' ? 'Reset your password' : 'Welcome back.'}</h2><p>{mode === 'register' ? 'Start a private space for your farms and pineapple plots.' : mode === 'reset' ? 'We’ll email you a link to set a new password.' : 'Sign in and pick up where you left off.'}</p>
+    <div className="auth-visual"><Brand /><div className="auth-visual-copy"><span className="eyebrow">A CLEARER VIEW OF YOUR CROP</span><h1>Small checks.<br /><span>Better care.</span></h1><p>Keep your pineapple photos, observations, and next steps together.</p><div className="auth-ribbon" aria-hidden="true"><span>01<small>Photo</small></span><i /><span>02<small>Scan</small></span><i /><span>03<small>Care</small></span></div></div><div className="auth-visual-bottom"><span>Observe. Understand. Care.</span><ScanLine size={24} /></div></div>
+    <main className="auth-main"><div className="auth-card"><div className="auth-mobile-brand"><Brand /></div><span className="eyebrow">YOUR GROWING SPACE</span><h2>{mode === 'register' ? 'Create your account' : mode === 'reset' ? 'Reset your password' : 'Welcome back.'}</h2><p>{mode === 'register' ? 'Start a private space for your farms and pineapple plots.' : mode === 'reset' ? 'We’ll email you a link to set a new password.' : 'Sign in and pick up where you left off.'}</p>
       <form onSubmit={submit} className="auth-form">
         {mode === 'register' && <label className="field"><span>Your name</span><input autoFocus required maxLength={80} autoComplete="name" value={name} onChange={event => setName(event.target.value)} placeholder="How should we greet you?" /></label>}
         <label className="field"><span>Email address</span><input autoFocus={mode !== 'register'} required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>
@@ -77,7 +76,7 @@ export default function App() {
   const [user, setUser] = useState(undefined);
   const [data, setData] = useState(emptyData);
   const [dataError, setDataError] = useState('');
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState('scan');
   const [plotId, setPlotId] = useState('');
   const [viewAction, setViewAction] = useState('');
   const [online, setOnline] = useState(navigator.onLine);
@@ -109,7 +108,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!auth) return undefined;
-    return onAuthStateChanged(auth, account => { setUser(account); if (!account) { setData(emptyData); setPage('dashboard'); setResearcher(false); } });
+    return onAuthStateChanged(auth, account => { setUser(account); if (!account) { setData(emptyData); setPage('scan'); setResearcher(false); setMenuOpen(false); setIntroOpen(false); } });
   }, []);
   useEffect(() => {
     if (!user || !db) return undefined;
@@ -130,12 +129,6 @@ export default function App() {
     introChecked.current.add(uid);
     if (!hasSeenIntroduction(uid)) setIntroOpen(true);
   }, [user?.uid, data.ready]);
-  useEffect(() => {
-    const mobile = window.matchMedia('(max-width: 760px)');
-    const change = () => { if (!mobile.matches) setMenuOpen(false); };
-    mobile.addEventListener('change', change);
-    return () => mobile.removeEventListener('change', change);
-  }, []);
 
   function closeIntroduction() {
     if (user?.uid) rememberIntroduction(user.uid);
@@ -165,6 +158,12 @@ export default function App() {
     });
   }
 
+  async function leaveWorkspace() {
+    setMenuOpen(false);
+    try { await signOut(auth); }
+    catch (issue) { notify(readableError(issue), 'error'); }
+  }
+
   if (!firebaseConfigured) return <div className="setup-page"><Brand /><div className="panel"><span className="eyebrow">SETUP NEEDED</span><h1>Connect AGRI-VISION to Firebase</h1><p>Set the Firebase web values in your local environment or Vercel project, then reload this page.</p><p>See <code>.env.example</code> and the deployment guide in the project.</p></div></div>;
   if (user === undefined) return <LoadingScreen text="Opening AGRI-VISION…" />;
   if (!user) return <><NetworkBanner online={online} /><AuthPage onNotify={notify} />{notice && <div className={`toast toast-${notice.type}`} role="status">{notice.message}<button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={16} /></button></div>}</>;
@@ -172,12 +171,33 @@ export default function App() {
   const navigation = mainNavigation;
   const view = dataError ? <div className="view"><div className="panel error-panel"><h1>Could not load your workspace</h1><p>{dataError}</p><button className="button button-soft" onClick={() => window.location.reload()}>Try again</button></div></div> : !data.ready ? <LoadingScreen /> : page === 'farms' ? <FarmsView initialAction={viewAction} uid={user.uid} data={data} onNavigate={navigate} onNotify={notify} online={online} /> : page === 'plot' ? <PlotView initialAction={viewAction} uid={user.uid} data={data} plotId={plotId} onNavigate={navigate} onNotify={notify} online={online} /> : page === 'scan' ? <ScanView uid={user.uid} user={user} plots={data.plots} farms={data.farms} initialPlotId={plotId} onNavigate={navigate} onNotify={notify} online={online} /> : page === 'activity' ? <ActivityView initialAction={viewAction} uid={user.uid} data={data} onNotify={notify} /> : page === 'guide' ? <HealthGuideView onNavigate={navigate} /> : page === 'help' ? <HowToUseView onNavigate={navigate} onReplay={() => setIntroOpen(true)} /> : page === 'research' ? <ResearchView researcher={researcher} onNotify={notify} /> : page === 'settings' ? <SettingsView user={user} data={data} themePreference={themePreference} setThemePreference={setThemePreference} researcher={researcher} refreshResearcher={refreshResearcher} onNotify={notify} online={online} /> : <DashboardView user={user} data={data} onNavigate={navigate} onNotify={notify} />;
 
+  const isCurrent = key => page === key || (page === 'plot' && key === 'farms');
+  const initials = (data.profile?.displayName || user.email || 'A').slice(0, 1).toUpperCase();
+
   return <div className="app-shell" data-page={page}>
     <a className="skip-link" href="#main-content">Skip to content</a>
-    <aside ref={menuDialog} id="workspace-navigation" role={menuOpen ? 'dialog' : undefined} aria-modal={menuOpen ? true : undefined} aria-label={menuOpen ? 'Workspace navigation' : undefined} tabIndex={-1} className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}><div className="sidebar-top"><Brand /><button className="icon-button menu-close" type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={20} /></button></div><div className="sidebar-label">YOUR FIELD JOURNAL</div><nav aria-label="Main navigation">{navigation.map(([key, label, Icon], index) => <button key={key} type="button" aria-current={page === key || (page === 'plot' && key === 'farms') ? 'page' : undefined} className={`nav-link ${page === key || (page === 'plot' && key === 'farms') ? 'active' : ''} ${key === 'scan' ? 'nav-scan' : ''}`} onClick={() => navigate(key)}><Icon size={19} /><span>{label}</span><small className="nav-number" aria-hidden="true">0{index + 1}</small></button>)}</nav><div className="sidebar-label reference-label">REFERENCE</div><nav aria-label="Reference navigation"><button className={`nav-link ${page === 'help' ? 'active' : ''}`} aria-current={page === 'help' ? 'page' : undefined} type="button" onClick={() => navigate('help')}><HelpCircle size={19} /><span>How to use</span></button><button className={`nav-link ${page === 'guide' ? 'active' : ''}`} aria-current={page === 'guide' ? 'page' : undefined} type="button" onClick={() => navigate('guide')}><BookOpen size={19} /><span>Health guide</span></button>{researcher && services.sharing && <button className={`nav-link ${page === 'research' ? 'active' : ''}`} aria-current={page === 'research' ? 'page' : undefined} type="button" onClick={() => navigate('research')}><FlaskConical size={19} /><span>Research</span></button>}</nav><div className="sidebar-note" aria-hidden="true"><PineappleMark size={34} /><p>Rooted in care.<br /><em>One plant at a time.</em></p></div><div className="sidebar-bottom"><div className="sidebar-account"><span className="account-avatar">{(data.profile?.displayName || user.email || 'A').slice(0, 1).toUpperCase()}</span><span><strong>{data.profile?.displayName || 'Your account'}</strong><small>Private workspace</small></span></div><button type="button" className="sidebar-signout" onClick={() => signOut(auth)}><LogOut size={17} /> Sign out</button></div></aside>
-    {menuOpen && <button className="menu-scrim" type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" />}
-    <div className="app-content"><NetworkBanner online={online} /><header className="topbar"><button className="icon-button mobile-menu" type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen} aria-controls="workspace-navigation"><Menu size={21} /></button><div className="topbar-breadcrumb"><span className="topbar-kicker">Pineapple Health</span><strong>{page === 'plot' ? 'Plot details' : page === 'guide' ? 'Health guide' : page === 'help' ? 'How to use' : page === 'research' ? 'Research' : navigation.find(item => item[0] === page)?.[1] || 'Overview'}</strong></div><div className="topbar-actions"><span className="topbar-date">{new Date().toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })}</span><span className={`scanner-indicator ${services.scanner ? 'scanner-ready' : ''}`}><span />{services.checking ? 'Checking scanner' : services.scanner ? 'Scanner ready' : 'Scanner unavailable'}</span><button className="icon-button" type="button" onClick={() => setThemePreference(themePreference === 'dark' || (themePreference === 'system' && deviceDark) ? 'light' : 'dark')} aria-label="Switch color theme">{themePreference === 'dark' || (themePreference === 'system' && deviceDark) ? <Sun size={19} /> : <Moon size={19} />}</button><span className="topbar-avatar">{(data.profile?.displayName || user.email || 'A').slice(0, 1).toUpperCase()}</span></div></header><main id="main-content" className="main-content" tabIndex={-1}><div key={page} className="page-content">{view}</div></main></div>
-    <nav className="bottom-nav" aria-label="Mobile navigation">{mainNavigation.map(([key, label, Icon]) => <button key={key} type="button" aria-current={page === key || (page === 'plot' && key === 'farms') ? 'page' : undefined} className={`${page === key || (page === 'plot' && key === 'farms') ? 'active' : ''} ${key === 'scan' ? 'mobile-scan' : ''}`} onClick={() => navigate(key)}><Icon size={21} /><span>{label}</span></button>)}</nav>
+    <NetworkBanner online={online} />
+    <header className="workspace-header">
+      <button className="brand-home" type="button" onClick={() => navigate('dashboard')} aria-label="AGRI-VISION overview"><Brand /></button>
+      <nav className="desktop-navigation" aria-label="Main navigation">{navigation.map(([key, label]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={isCurrent(key) ? 'active' : ''} onClick={() => navigate(key)}>{label}</button>)}</nav>
+      <div className="flex items-center gap-2">
+        <span className={`scanner-indicator ${services.scanner ? 'scanner-ready' : ''}`}><span />{services.checking ? 'Checking scanner' : services.scanner ? 'Scanner ready' : 'Scanner unavailable'}</span>
+        <button className="icon-button theme-toggle" type="button" onClick={() => setThemePreference(themePreference === 'dark' || (themePreference === 'system' && deviceDark) ? 'light' : 'dark')} aria-label="Switch color theme">{themePreference === 'dark' || (themePreference === 'system' && deviceDark) ? <Sun size={19} /> : <Moon size={19} />}</button>
+        <button className="account-menu-trigger" type="button" onClick={() => setMenuOpen(true)} aria-label="Open workspace menu" aria-expanded={menuOpen} aria-controls="workspace-navigation"><span className="account-avatar">{initials}</span><Menu size={17} /></button>
+      </div>
+    </header>
+    {menuOpen && <div className="menu-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMenuOpen(false); }}>
+      <aside ref={menuDialog} id="workspace-navigation" role="dialog" aria-modal="true" aria-label="Workspace menu" tabIndex={-1} className="workspace-menu">
+        <div className="flex items-center justify-between gap-4"><Brand /><button className="icon-button" type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={20} /></button></div>
+        <div className="menu-account"><span className="account-avatar">{initials}</span><div><strong>{data.profile?.displayName || 'Your account'}</strong><small>Private workspace</small></div></div>
+        <nav className="menu-main-navigation" aria-label="Workspace pages">{navigation.map(([key, label, Icon]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={`nav-link ${isCurrent(key) ? 'active' : ''}`} onClick={() => navigate(key)}><Icon size={19} /><span>{label}</span></button>)}</nav>
+        <span className="eyebrow">REFERENCE</span>
+        <nav aria-label="Reference navigation"><button className="nav-link" aria-current={page === 'help' ? 'page' : undefined} type="button" onClick={() => navigate('help')}><HelpCircle size={19} /><span>How to use</span></button><button className="nav-link" aria-current={page === 'guide' ? 'page' : undefined} type="button" onClick={() => navigate('guide')}><BookOpen size={19} /><span>Health guide</span></button>{researcher && services.sharing && <button className="nav-link" aria-current={page === 'research' ? 'page' : undefined} type="button" onClick={() => navigate('research')}><FlaskConical size={19} /><span>Research</span></button>}</nav>
+        <button type="button" className="menu-signout" onClick={leaveWorkspace}><LogOut size={17} /> Sign out</button>
+      </aside>
+    </div>}
+    <main id="main-content" className="main-content" tabIndex={-1}><div key={page} className="page-content">{view}</div></main>
+    <nav className="bottom-nav" aria-label="Mobile navigation">{mainNavigation.map(([key, label, Icon]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={`${isCurrent(key) ? 'active' : ''} ${key === 'scan' ? 'mobile-scan' : ''}`} onClick={() => navigate(key)}><Icon size={21} /><span>{label}</span></button>)}</nav>
     <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{navigationAnnouncement}</div>
     {introOpen && <Introduction onClose={closeIntroduction} />}
     {notice && <div className={`toast toast-${notice.type}`} role="status">{notice.message}<button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={16} /></button></div>}

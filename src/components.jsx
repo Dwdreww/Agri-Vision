@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Camera, ChevronDown, CircleAlert, ClipboardList, ImageOff, Leaf, LoaderCircle, ScanLine, Trash2 } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
+import { Camera, ChevronDown, CircleAlert, ClipboardList, ImageOff, Leaf, LoaderCircle, ScanLine, Sprout, Trash2 } from 'lucide-react';
 import { deleteScan, fetchPrivateImage, linkImportedScan, revokeScan, setTaskCompleted, shareScan } from './data';
 import { conditionLabel, dateLabel, readableError, statusLabel } from './utils';
 import { useWorkspaceServices } from './services';
@@ -7,12 +7,11 @@ import { classifyCondition } from './conditions';
 import { localDateKey, taskStatus } from './activity';
 import RecommendationCard from './Recommendations.jsx';
 import { formatConfidence } from './recommendation-utils.js';
-import { PineappleMark } from './FieldArt';
 
 export function Brand({ compact = false }) {
   return <div className={`brand ${compact ? 'brand-compact' : ''}`}>
-    <span className="brand-mark"><PineappleMark size={43} /></span>
-    <span className="brand-word">agri<span>vision.</span><small>A little care, every day.</small></span>
+    <span className="brand-mark"><Sprout size={27} strokeWidth={1.6} /></span>
+    <span className="brand-word">agri<span>vision.</span><small>Pineapple health</small></span>
   </div>;
 }
 
@@ -103,10 +102,12 @@ export function PredictionDetails({ scan, showPhotos = false }) {
 
 export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact = false }) {
   const services = useWorkspaceServices();
+  const detailsId = useId();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const plot = plots.find(item => item.id === scan.plotId);
   const farm = farms.find(item => item.id === (scan.farmId || plot?.farmId));
+  const recordedDate = scan.importedFromLegacy && scan.legacyDisplayTime ? scan.legacyDisplayTime : scan.createdAt ? dateLabel(scan.createdAt) : 'Date unavailable';
   function requireConnection() {
     if (navigator.onLine) return true;
     onNotify('Connect to the internet to change a scan.', 'error');
@@ -147,12 +148,14 @@ export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact 
       <div className="scan-card-title">
         <div className="scan-title-line"><h3>{scan.topClass || 'Scan result'}</h3><StatusPill type={scan.statusType}>{statusLabel(scan)}</StatusPill></div>
         <ConditionBadge label={scan.topClass} />
-        <p>{scan.importedFromLegacy && scan.legacyDisplayTime ? scan.legacyDisplayTime : scan.createdAt ? dateLabel(scan.createdAt) : 'Date unavailable'} · {plot?.name || 'Unassigned'}{farm ? ` · ${farm.name}` : ''}</p>
+        <p className="scan-context"><span>{recordedDate}</span><span>{farm ? `${farm.name} · ` : ''}{plot?.name || 'Unassigned'}</span></p>
       </div>
-      <button className="button button-soft record-details-button" type="button" aria-label={open ? 'Hide details' : 'View details'} aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? 'Hide details' : 'View details'}<ChevronDown className={open ? 'rotated' : ''} size={16} /></button>
     </div>
-    <div className="scan-stats"><span><strong>{formatConfidence(scan.topConfidence)}</strong> model confidence</span><span><strong>{scan.detectionCount ?? 0}</strong> detected regions</span>{scan.shareForResearch && <span className="shared-label">Shared for research</span>}</div>
-    {open && <div className="scan-card-expanded">
+    <div className="scan-card-footer">
+      <div className="scan-stats"><span><strong>{formatConfidence(scan.topConfidence)}</strong><span>Model confidence</span></span><span><strong>{scan.detectionCount ?? 0}</strong><span>Detected regions</span></span>{scan.shareForResearch && <span className="shared-label">Shared for research</span>}</div>
+      <button className="button button-soft record-details-button" type="button" aria-label={open ? 'Hide details' : 'View details'} aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen(value => !value)}>{open ? 'Hide details' : 'View details'}<ChevronDown className={open ? 'rotated' : ''} size={16} /></button>
+    </div>
+    {open && <div id={detailsId} className="scan-card-expanded">
       {scan.importedFromLegacy && !scan.plotId && <label className="field compact-field"><span>Link this old scan to a plot</span><select value="" onChange={handleLink} disabled={busy}><option value="">Select plot</option>{plots.filter(item => !item.archivedAt).map(item => <option key={item.id} value={item.id}>{farms.find(farm => farm.id === item.farmId)?.name || 'Farm'} · {item.name}</option>)}</select></label>}
       {scan.importedFromLegacy && <p className="callout subtle"><CircleAlert size={17} /> Imported from this browser. This record has no saved photos or detailed model output.</p>}
       <ConfidenceHelp />

@@ -1,6 +1,13 @@
 # Pilot rollout status
 
-The free local pilot is connected to live Firebase Authentication and Firestore. Real inference, private photos on this Mac, research sharing, and deletion now run through local services. Firebase billing remains disabled. A public cloud deployment is still pending.
+The free local pilot is connected to live Firebase Authentication and Firestore. Real inference, private photos on this Mac, research sharing, and deletion run through local services. Firebase billing remains disabled. The existing Vercel frontend was deployed on October 10 in monitoring mode; public scanning and cloud photo storage remain pending.
+
+## Public frontend release on 2026-10-10
+
+- Pushed commit `c6070434c19c539ef5382ec540d80ac9412a7b2c` to GitHub `main` for the deadline release.
+- The existing Vercel project deployed successfully at https://agri-vision-eosin.vercel.app/ with the public Firebase web configuration and `VITE_WORKSPACE_MODE=monitoring`.
+- Production login and assets were verified. The production backend health check returned 503; scanning, photo storage, and Gemini are not ready for public use.
+- The guided ribbon frontend update includes the three-step scanner, expandable reports, reorganized overview, and compact scan record correction. It is published through GitHub `main` and the existing Vercel project, keeping production in monitoring mode. It does not change the public model or activate Gemini.
 
 ## Completed locally
 

@@ -25,9 +25,9 @@ the model result and is saved privately on this computer. Gemini generation need
 private server configuration; scanning remains available without it. See
 [AI recommendation setup and behavior](docs/ai-recommendations.md).
 
-The frontend uses an illustrated field-journal design, with warm paper tones,
-original pineapple artwork, friendly screen language, and responsive light/dark
-layouts. See [design and verification notes](docs/field-journal-design.md).
+The frontend uses the selected guided ribbon design: React with Tailwind CSS,
+clean forest-green styling, three photo-to-result steps, an expandable detailed
+report, and responsive light/dark layouts. See [design notes](docs/guided-ribbon-design-2026-10-10.md).
 
 ## Local setup
 

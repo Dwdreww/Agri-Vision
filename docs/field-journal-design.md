@@ -1,5 +1,7 @@
 # Pineapple Health field journal design
 
+Historical design: superseded by the user's selected [guided ribbon design](guided-ribbon-design-2026-10-10.md) on October 10. The illustrated stylesheet described below has been removed from the current frontend.
+
 The subsequent [layout and workflow revision](layout-ux-revision-2026-10-08.md)
 keeps this identity and replaces the original Overview arrangement described below.
 
