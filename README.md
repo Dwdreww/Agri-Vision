@@ -12,16 +12,17 @@ AGRI-VISION is a pineapple monitoring app for a small pilot. A signed-in user ca
 
 ## How it is built
 
-The current frontend opens without login and saves farms, plots, photo/scan history,
-observations, and care tasks in this browser using IndexedDB. Records and photo
-blobs survive reloads. Settings offers a JSON backup including the photos. Browser
-storage is separate for each site/browser and can be removed by clearing site data.
+The frontend opens at the sign-in screen. **Continue as guest** needs no email
+or password and reopens farms, plots, photo/scan history, observations, and care
+tasks saved in this browser using IndexedDB. Records and photo blobs survive
+reloads and returning to sign in. Settings offers a JSON backup including the
+photos. Browser storage is separate for each site/browser and can be removed by clearing site data.
 See [browser workspace notes](docs/browser-workspace-2026-10-12.md).
 
-The existing account-backed implementation is retained. To use it, set
-`VITE_ACCOUNT_MODE=required` alongside the Firebase configuration and the appropriate
-`VITE_WORKSPACE_MODE`. The default browser mode does not initialize Firebase or
-read, change, or expose existing account records. Real scanning and Gemini remain
+Normal sign-in uses the existing Firebase configuration and the appropriate
+`VITE_WORKSPACE_MODE`; remembered account sessions remain supported. Guest mode
+does not initialize Firebase or read, change, or expose account records.
+`VITE_ACCOUNT_MODE` is no longer used. Real scanning and Gemini remain
 pending public backend deployment; saved photos are marked **Not analyzed**.
 
 - **Web app:** React and Vite. Firebase Authentication handles email/password accounts and Cloud Firestore stores private monitoring records.
@@ -43,13 +44,14 @@ report, and responsive light/dark layouts. See [design notes](docs/guided-ribbon
 
 ## Static frontend setup
 
-Run `npm install` and `npm run dev`. Browser mode needs no account, backend
-process, or Firebase setup. Run `npm run build` to prepare the Vercel frontend.
+Run `npm install` and `npm run dev`. Configure the Firebase web values for the
+sign-in screen. Guest entry needs no account or backend process. Run
+`npm run build` to prepare the Vercel frontend.
 
 ## Full local pilot setup
 
-Set `VITE_ACCOUNT_MODE=required` and `VITE_WORKSPACE_MODE=local` to use the
-authenticated model and workspace services described below.
+Set `VITE_WORKSPACE_MODE=local` and sign in to use the authenticated model and
+workspace services described below.
 
 The current Mac already has the Firebase project configuration, dependencies, model weights, and owner CLI session. Start all three local services together with Node 22:
 

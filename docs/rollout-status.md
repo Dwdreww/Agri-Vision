@@ -2,12 +2,13 @@
 
 ## Static browser frontend — 2026-10-12
 
-The frontend now defaults to a login-free browser workspace. Farms, plots,
-photo/scan records, observations, and tasks persist in IndexedDB on the current
-browser, with a records-and-photos backup export in Settings. The original
-account services and private Firebase records are retained separately and are
-enabled with `VITE_ACCOUNT_MODE=required`. Real model scanning and Gemini still
-await the public backend deployment. Saved photos are explicitly Not analyzed.
+The frontend opens at sign-in with **Continue as guest** for entry without
+credentials. Guest farms, plots, photo/scan records, observations, and tasks
+persist in IndexedDB on the current browser, including after returning to sign
+in and reentering. Settings provides a records-and-photos backup export. Normal
+accounts and their private Firebase records remain separate and use the existing
+Firebase configuration. `VITE_ACCOUNT_MODE` is no longer used. Real model
+scanning and Gemini still await the public backend deployment. Saved photos are explicitly Not analyzed.
 
 The deployment path remains GitHub `main` to the existing Vercel project. See
 `browser-workspace-2026-10-12.md` for persistence behavior and verification.

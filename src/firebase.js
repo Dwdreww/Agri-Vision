@@ -3,8 +3,11 @@ import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
+import { isGuestSession } from './guest-session.js';
 
-export const browserWorkspace = import.meta.env.VITE_ACCOUNT_MODE !== 'required';
+let guestSessionStorage;
+try { guestSessionStorage = window.sessionStorage; } catch { /* Explicit URL entry remains available. */ }
+export const browserWorkspace = isGuestSession({ storage: guestSessionStorage, search: window.location.search });
 export const workspaceMode = browserWorkspace ? 'browser' : import.meta.env.VITE_WORKSPACE_MODE || 'monitoring';
 
 const config = {

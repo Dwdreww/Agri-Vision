@@ -4,6 +4,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Activity, BookOpen, FlaskConical, HelpCircle, LayoutDashboard, LogOut, Menu, Moon, ScanLine, Settings, Sprout, Sun, X } from 'lucide-react';
 import { auth, db, firebaseConfigured, browserWorkspace } from './firebase';
 import { BROWSER_UID } from './browser-store.js';
+import { enterGuestSession, leaveGuestSession } from './guest-session.js';
 import BrowserSettingsView from './BrowserSettings.jsx';
 import { watchAccount } from './data';
 import { Brand, LoadingScreen, NetworkBanner } from './components';
@@ -33,6 +34,12 @@ function AuthPage({ onNotify }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  function continueAsGuest() {
+    let storage;
+    try { storage = window.sessionStorage; } catch { /* The helper uses an explicit URL fallback. */ }
+    window.location.assign(enterGuestSession({ storage, href: window.location.href }));
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -68,6 +75,7 @@ function AuthPage({ onNotify }) {
         {error && <div className="inline-error" role="alert">{error}</div>}
         <button className="button button-primary button-large auth-submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'reset' ? 'Send reset email' : 'Sign in'}</button>
       </form>
+      {mode === 'login' && <div className="guest-entry"><span>Or use this browser's saved history</span><button className="button button-soft button-large" type="button" disabled={busy} onClick={continueAsGuest}>Continue as guest <Sprout size={18} /></button><p>No email or password needed. Saved guest records stay in this browser.</p></div>}
       <div className="auth-links">{mode === 'login' ? <><button type="button" onClick={() => { setError(''); setMode('reset'); }}>Forgot password?</button><span>New here? <button type="button" onClick={() => { setError(''); setMode('register'); }}>Create an account</button></span></> : <button type="button" onClick={() => { setError(''); setMode('login'); }}>Back to sign in</button>}</div>
       <p className="auth-footnote">Your farm records and photos are private to your account.</p>
     </div></main>
@@ -164,6 +172,12 @@ export default function App() {
 
   async function leaveWorkspace() {
     setMenuOpen(false);
+    if (browserWorkspace) {
+      let storage;
+      try { storage = window.sessionStorage; } catch { /* Clear the URL fallback too. */ }
+      window.location.assign(leaveGuestSession({ storage, href: window.location.href }));
+      return;
+    }
     try { await signOut(auth); }
     catch (issue) { notify(readableError(issue), 'error'); }
   }
@@ -197,10 +211,10 @@ export default function App() {
         <nav className="menu-main-navigation" aria-label="Workspace pages">{navigation.map(([key, label, Icon]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={`nav-link ${isCurrent(key) ? 'active' : ''}`} onClick={() => navigate(key)}><Icon size={19} /><span>{label}</span></button>)}</nav>
         <span className="eyebrow">REFERENCE</span>
         <nav aria-label="Reference navigation"><button className="nav-link" aria-current={page === 'help' ? 'page' : undefined} type="button" onClick={() => navigate('help')}><HelpCircle size={19} /><span>How to use</span></button><button className="nav-link" aria-current={page === 'guide' ? 'page' : undefined} type="button" onClick={() => navigate('guide')}><BookOpen size={19} /><span>Health guide</span></button>{researcher && services.sharing && <button className="nav-link" aria-current={page === 'research' ? 'page' : undefined} type="button" onClick={() => navigate('research')}><FlaskConical size={19} /><span>Research</span></button>}</nav>
-        {browserWorkspace ? <button type="button" className="menu-signout" onClick={() => navigate('settings')}><Settings size={17} /> Browser storage & settings</button> : <button type="button" className="menu-signout" onClick={leaveWorkspace}><LogOut size={17} /> Sign out</button>}
+        <button type="button" className="menu-signout" onClick={leaveWorkspace}><LogOut size={17} /> {browserWorkspace ? 'Return to sign in' : 'Sign out'}</button>
       </aside>
     </div>}
-    <main id="main-content" className="main-content" tabIndex={-1}>{browserWorkspace && <div className="browser-workspace-note"><span>No account needed. Records and photos stay in this browser.</span><button className="text-link" type="button" onClick={() => navigate('settings')}>Storage & backup</button></div>}<div key={page} className="page-content">{view}</div></main>
+    <main id="main-content" className="main-content" tabIndex={-1}>{browserWorkspace && <div className="browser-workspace-note"><span>Guest workspace. Your saved history stays in this browser.</span><button className="text-link" type="button" onClick={() => navigate('settings')}>Storage & backup</button></div>}<div key={page} className="page-content">{view}</div></main>
     <nav className="bottom-nav" aria-label="Mobile navigation">{mainNavigation.map(([key, label, Icon]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={`${isCurrent(key) ? 'active' : ''} ${key === 'scan' ? 'mobile-scan' : ''}`} onClick={() => navigate(key)}><Icon size={21} /><span>{label}</span></button>)}</nav>
     <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{navigationAnnouncement}</div>
     {introOpen && <Introduction onClose={closeIntroduction} />}
