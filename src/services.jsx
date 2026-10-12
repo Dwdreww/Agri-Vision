@@ -1,13 +1,15 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { workspaceMode } from './firebase';
+import { browserWorkspace, workspaceMode } from './firebase';
 
 const unavailable = { checking: false, scanner: false, photos: false, sharing: false, deletion: false, recommendations: false, local: false };
+const browserServices = { ...unavailable, browser: true, photos: true, deletion: true, retry: () => {} };
 const ServicesContext = createContext(unavailable);
 
 export function WorkspaceServices({ children }) {
-  const [services, setServices] = useState({ ...unavailable, checking: true });
+  const [services, setServices] = useState(browserWorkspace ? browserServices : { ...unavailable, checking: true });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    if (browserWorkspace) return undefined;
     let active = true;
     let nextCheck;
     const controller = new AbortController();

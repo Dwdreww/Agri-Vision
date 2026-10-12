@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Activity, BookOpen, FlaskConical, HelpCircle, LayoutDashboard, LogOut, Menu, Moon, ScanLine, Settings, Sprout, Sun, X } from 'lucide-react';
-import { auth, db, firebaseConfigured } from './firebase';
+import { auth, db, firebaseConfigured, browserWorkspace } from './firebase';
+import { BROWSER_UID } from './browser-store.js';
+import BrowserSettingsView from './BrowserSettings.jsx';
 import { watchAccount } from './data';
 import { Brand, LoadingScreen, NetworkBanner } from './components';
-import { ActivityView, DashboardView, FarmsView, PlotView, ResearchView, SettingsView } from './Views';
+import { ActivityView, DashboardView, FarmsView, PlotView, ResearchView, SettingsView as AccountSettingsView } from './Views';
 import ScanView from './Scan';
 import HealthGuideView from './HealthGuide';
 import HowToUseView, { hasSeenIntroduction, Introduction, rememberIntroduction } from './HowToUse';
@@ -14,6 +16,7 @@ import { readableError } from './utils';
 import { useWorkspaceServices } from './services';
 import { retryAuthConnection } from './auth-retry';
 
+const SettingsView = browserWorkspace ? BrowserSettingsView : AccountSettingsView;
 const emptyData = { profile: null, farms: [], plots: [], scans: [], observations: [], tasks: [], ready: false };
 const mainNavigation = [
   ['dashboard', 'Overview', LayoutDashboard],
@@ -73,13 +76,13 @@ function AuthPage({ onNotify }) {
 
 export default function App() {
   const services = useWorkspaceServices();
-  const [user, setUser] = useState(undefined);
+  const [user, setUser] = useState(browserWorkspace ? { uid: BROWSER_UID, displayName: 'Grower' } : undefined);
   const [data, setData] = useState(emptyData);
   const [dataError, setDataError] = useState('');
   const [page, setPage] = useState('scan');
   const [plotId, setPlotId] = useState('');
   const [viewAction, setViewAction] = useState('');
-  const [online, setOnline] = useState(navigator.onLine);
+  const [online, setOnline] = useState(browserWorkspace || navigator.onLine);
   const [researcher, setResearcher] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -101,7 +104,7 @@ export default function App() {
     document.documentElement.dataset.theme = themePreference === 'system' ? (deviceDark ? 'dark' : 'light') : themePreference;
   }, [themePreference, deviceDark]);
   useEffect(() => {
-    const change = () => setOnline(navigator.onLine);
+    const change = () => setOnline(browserWorkspace || navigator.onLine);
     window.addEventListener('online', change);
     window.addEventListener('offline', change);
     return () => { window.removeEventListener('online', change); window.removeEventListener('offline', change); };
@@ -111,11 +114,12 @@ export default function App() {
     return onAuthStateChanged(auth, account => { setUser(account); if (!account) { setData(emptyData); setPage('scan'); setResearcher(false); setMenuOpen(false); setIntroOpen(false); } });
   }, []);
   useEffect(() => {
-    if (!user || !db) return undefined;
+    if (!user || (!browserWorkspace && !db)) return undefined;
     let current = true;
     setData(emptyData);
     setDataError('');
     const unsubscribe = watchAccount(user.uid, next => { if (current) { setData(next); setDataError(''); } }, issue => { if (current) setDataError(readableError(issue)); });
+    if (browserWorkspace) return () => { current = false; unsubscribe(); };
     getDoc(doc(db, 'users', user.uid)).then(snapshot => {
       if (!snapshot.exists() && current) return setDoc(doc(db, 'users', user.uid), { displayName: user.displayName || user.email?.split('@')[0] || 'Grower', email: user.email, createdAt: serverTimestamp(), historyImportedAt: null });
     }).catch(issue => { if (current) setDataError(readableError(issue)); });
@@ -125,7 +129,7 @@ export default function App() {
 
   useEffect(() => {
     const uid = user?.uid;
-    if (!uid || !data.ready || introChecked.current.has(uid)) return;
+    if (browserWorkspace || !uid || !data.ready || introChecked.current.has(uid)) return;
     introChecked.current.add(uid);
     if (!hasSeenIntroduction(uid)) setIntroOpen(true);
   }, [user?.uid, data.ready]);
@@ -164,7 +168,7 @@ export default function App() {
     catch (issue) { notify(readableError(issue), 'error'); }
   }
 
-  if (!firebaseConfigured) return <div className="setup-page"><Brand /><div className="panel"><span className="eyebrow">SETUP NEEDED</span><h1>Connect AGRI-VISION to Firebase</h1><p>Set the Firebase web values in your local environment or Vercel project, then reload this page.</p><p>See <code>.env.example</code> and the deployment guide in the project.</p></div></div>;
+  if (!browserWorkspace && !firebaseConfigured) return <div className="setup-page"><Brand /><div className="panel"><span className="eyebrow">SETUP NEEDED</span><h1>Connect AGRI-VISION to Firebase</h1><p>Set the Firebase web values in your local environment or Vercel project, then reload this page.</p><p>See <code>.env.example</code> and the deployment guide in the project.</p></div></div>;
   if (user === undefined) return <LoadingScreen text="Opening AGRI-VISION…" />;
   if (!user) return <><NetworkBanner online={online} /><AuthPage onNotify={notify} />{notice && <div className={`toast toast-${notice.type}`} role="status">{notice.message}<button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={16} /></button></div>}</>;
 
@@ -181,7 +185,7 @@ export default function App() {
       <button className="brand-home" type="button" onClick={() => navigate('dashboard')} aria-label="AGRI-VISION overview"><Brand /></button>
       <nav className="desktop-navigation" aria-label="Main navigation">{navigation.map(([key, label]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={isCurrent(key) ? 'active' : ''} onClick={() => navigate(key)}>{label}</button>)}</nav>
       <div className="flex items-center gap-2">
-        <span className={`scanner-indicator ${services.scanner ? 'scanner-ready' : ''}`}><span />{services.checking ? 'Checking scanner' : services.scanner ? 'Scanner ready' : 'Scanner unavailable'}</span>
+        <span className={`scanner-indicator ${services.scanner ? 'scanner-ready' : ''}`}><span />{browserWorkspace ? 'Saved in this browser' : services.checking ? 'Checking scanner' : services.scanner ? 'Scanner ready' : 'Scanner unavailable'}</span>
         <button className="icon-button theme-toggle" type="button" onClick={() => setThemePreference(themePreference === 'dark' || (themePreference === 'system' && deviceDark) ? 'light' : 'dark')} aria-label="Switch color theme">{themePreference === 'dark' || (themePreference === 'system' && deviceDark) ? <Sun size={19} /> : <Moon size={19} />}</button>
         <button className="account-menu-trigger" type="button" onClick={() => setMenuOpen(true)} aria-label="Open workspace menu" aria-expanded={menuOpen} aria-controls="workspace-navigation"><span className="account-avatar">{initials}</span><Menu size={17} /></button>
       </div>
@@ -189,14 +193,14 @@ export default function App() {
     {menuOpen && <div className="menu-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMenuOpen(false); }}>
       <aside ref={menuDialog} id="workspace-navigation" role="dialog" aria-modal="true" aria-label="Workspace menu" tabIndex={-1} className="workspace-menu">
         <div className="flex items-center justify-between gap-4"><Brand /><button className="icon-button" type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={20} /></button></div>
-        <div className="menu-account"><span className="account-avatar">{initials}</span><div><strong>{data.profile?.displayName || 'Your account'}</strong><small>Private workspace</small></div></div>
+        <div className="menu-account"><span className="account-avatar">{initials}</span><div><strong>{data.profile?.displayName || 'Your account'}</strong><small>{browserWorkspace ? 'Browser workspace · No account needed' : 'Private workspace'}</small></div></div>
         <nav className="menu-main-navigation" aria-label="Workspace pages">{navigation.map(([key, label, Icon]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={`nav-link ${isCurrent(key) ? 'active' : ''}`} onClick={() => navigate(key)}><Icon size={19} /><span>{label}</span></button>)}</nav>
         <span className="eyebrow">REFERENCE</span>
         <nav aria-label="Reference navigation"><button className="nav-link" aria-current={page === 'help' ? 'page' : undefined} type="button" onClick={() => navigate('help')}><HelpCircle size={19} /><span>How to use</span></button><button className="nav-link" aria-current={page === 'guide' ? 'page' : undefined} type="button" onClick={() => navigate('guide')}><BookOpen size={19} /><span>Health guide</span></button>{researcher && services.sharing && <button className="nav-link" aria-current={page === 'research' ? 'page' : undefined} type="button" onClick={() => navigate('research')}><FlaskConical size={19} /><span>Research</span></button>}</nav>
-        <button type="button" className="menu-signout" onClick={leaveWorkspace}><LogOut size={17} /> Sign out</button>
+        {browserWorkspace ? <button type="button" className="menu-signout" onClick={() => navigate('settings')}><Settings size={17} /> Browser storage & settings</button> : <button type="button" className="menu-signout" onClick={leaveWorkspace}><LogOut size={17} /> Sign out</button>}
       </aside>
     </div>}
-    <main id="main-content" className="main-content" tabIndex={-1}><div key={page} className="page-content">{view}</div></main>
+    <main id="main-content" className="main-content" tabIndex={-1}>{browserWorkspace && <div className="browser-workspace-note"><span>No account needed. Records and photos stay in this browser.</span><button className="text-link" type="button" onClick={() => navigate('settings')}>Storage & backup</button></div>}<div key={page} className="page-content">{view}</div></main>
     <nav className="bottom-nav" aria-label="Mobile navigation">{mainNavigation.map(([key, label, Icon]) => <button key={key} type="button" aria-current={isCurrent(key) ? 'page' : undefined} className={`${isCurrent(key) ? 'active' : ''} ${key === 'scan' ? 'mobile-scan' : ''}`} onClick={() => navigate(key)}><Icon size={21} /><span>{label}</span></button>)}</nav>
     <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{navigationAnnouncement}</div>
     {introOpen && <Introduction onClose={closeIntroduction} />}

@@ -4,7 +4,8 @@ import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
 
-export const workspaceMode = import.meta.env.VITE_WORKSPACE_MODE || 'monitoring';
+export const browserWorkspace = import.meta.env.VITE_ACCOUNT_MODE !== 'required';
+export const workspaceMode = browserWorkspace ? 'browser' : import.meta.env.VITE_WORKSPACE_MODE || 'monitoring';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,7 +20,7 @@ export const firebaseConfigured = Boolean(
   config.apiKey && config.authDomain && config.projectId && config.storageBucket && config.appId
 );
 
-export const app = firebaseConfigured ? initializeApp(config) : null;
+export const app = !browserWorkspace && firebaseConfigured ? initializeApp(config) : null;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;

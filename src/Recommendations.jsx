@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CircleAlert, Copy, LoaderCircle, RefreshCw, ShieldCheck, BookOpen } from 'lucide-react';
-import { auth } from './firebase';
+import { auth, browserWorkspace } from './firebase';
 import { useWorkspaceServices } from './services';
 import { readableError } from './utils';
 import { RECOMMENDATION_PREFERENCE_EVENT, readRecommendationPreference, recommendationPreferenceKey, recommendationText, writeRecommendationPreference } from './recommendation-utils.js';
@@ -29,6 +29,7 @@ export function useRecommendationPreference(uid) {
 export function RecommendationPreference({ uid, compact = false }) {
   const { enabled, choice, storageAvailable, setEnabled } = useRecommendationPreference(uid);
   const services = useWorkspaceServices();
+  if (browserWorkspace) return <section className="panel recommendation-preference"><h3>Optional AI recommendations</h3><p>Gemini recommendations will be available with the backend deployment. Your browser records and photos are saved locally.</p></section>;
   return <section className={`recommendation-preference ${compact ? 'recommendation-preference-compact' : ''}`} aria-label="AI recommendation preference">
     <div className="recommendation-preference-title"><ShieldCheck size={19} /><h3>Optional AI recommendations</h3></div>
     <p>When enabled, newly saved scans automatically receive text advice from Google Gemini. Google receives only the model’s detected labels, confidence values, detection count, and model version. Photos, account details, farm names, notes, locations, and your observations are excluded.</p>
@@ -43,6 +44,7 @@ export function RecommendationPreference({ uid, compact = false }) {
 function displayError(error) { return error?.userMessage || readableError(error); }
 
 export default function RecommendationCard(props) {
+  if (browserWorkspace) return <section className="panel" aria-label="AI Recommendations"><h3>AI Recommendations</h3><p className="helper-text">Gemini advice is not available in this browser-only version. Keep recording observations and review the health guide while the backend is prepared.</p></section>;
   return <RecommendationContent key={`${props.uid}:${props.scanId}`} {...props} />;
 }
 

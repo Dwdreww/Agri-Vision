@@ -12,6 +12,18 @@ AGRI-VISION is a pineapple monitoring app for a small pilot. A signed-in user ca
 
 ## How it is built
 
+The current frontend opens without login and saves farms, plots, photo/scan history,
+observations, and care tasks in this browser using IndexedDB. Records and photo
+blobs survive reloads. Settings offers a JSON backup including the photos. Browser
+storage is separate for each site/browser and can be removed by clearing site data.
+See [browser workspace notes](docs/browser-workspace-2026-10-12.md).
+
+The existing account-backed implementation is retained. To use it, set
+`VITE_ACCOUNT_MODE=required` alongside the Firebase configuration and the appropriate
+`VITE_WORKSPACE_MODE`. The default browser mode does not initialize Firebase or
+read, change, or expose existing account records. Real scanning and Gemini remain
+pending public backend deployment; saved photos are marked **Not analyzed**.
+
 - **Web app:** React and Vite. Firebase Authentication handles email/password accounts and Cloud Firestore stores private monitoring records.
 - **Free local pilot:** Flask runs the real YOLO and EfficientNet models. An authenticated local workspace service saves photos privately on this Mac and handles research sharing and deletion. Vite forwards requests to both services. All listeners bind to `127.0.0.1`; Firebase billing remains disabled.
 - **Research sharing:** The local service reuses the Firebase callable handlers to create or remove a sanitized result when its owner opts in. A manually granted researcher role can read those copies, without access to private records or photos. CSV exports also offer selectable text when a browser does not provide a downloaded file.
@@ -29,7 +41,15 @@ The frontend uses the selected guided ribbon design: React with Tailwind CSS,
 clean forest-green styling, three photo-to-result steps, an expandable detailed
 report, and responsive light/dark layouts. See [design notes](docs/guided-ribbon-design-2026-10-10.md).
 
-## Local setup
+## Static frontend setup
+
+Run `npm install` and `npm run dev`. Browser mode needs no account, backend
+process, or Firebase setup. Run `npm run build` to prepare the Vercel frontend.
+
+## Full local pilot setup
+
+Set `VITE_ACCOUNT_MODE=required` and `VITE_WORKSPACE_MODE=local` to use the
+authenticated model and workspace services described below.
 
 The current Mac already has the Firebase project configuration, dependencies, model weights, and owner CLI session. Start all three local services together with Node 22:
 

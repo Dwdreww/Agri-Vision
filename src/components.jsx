@@ -7,6 +7,7 @@ import { classifyCondition } from './conditions';
 import { localDateKey, taskStatus } from './activity';
 import RecommendationCard from './Recommendations.jsx';
 import { formatConfidence } from './recommendation-utils.js';
+import { browserWorkspace } from './firebase';
 
 export function Brand({ compact = false }) {
   return <div className={`brand ${compact ? 'brand-compact' : ''}`}>
@@ -73,14 +74,14 @@ export function PredictionDetails({ scan, showPhotos = false }) {
   return <div className="prediction-details">
     {showPhotos && <div className="photo-pair">
       <div><span className="field-label">Uploaded image</span><PrivateImage path={scan.preparedImagePath} provider={scan.storageProvider} alt="Prepared pineapple image" /></div>
-      <div><span className="field-label">Annotated result</span><PrivateImage path={scan.annotatedImagePath} provider={scan.storageProvider} alt="Pineapple scan with model annotations" /></div>
+      {!scan.isPhotoOnly && <div><span className="field-label">Annotated result</span><PrivateImage path={scan.annotatedImagePath} provider={scan.storageProvider} alt="Pineapple scan with model annotations" /></div>}
     </div>}
     {scan.message && <p>{scan.message}</p>}
-    {scan.recommendation && <p className="recommendation"><strong>Scanner’s suggested next step</strong><br />{scan.recommendation}</p>}
+    {scan.recommendation && <p className="recommendation"><strong>{scan.isPhotoOnly ? 'Suggested next step' : 'Scanner’s suggested next step'}</strong><br />{scan.recommendation}</p>}
     <div className="detail-grid">
       <div><span>Condition type</span><strong><ConditionBadge label={scan.topClass} /></strong></div>
-      <div><span>Model version</span><strong>{scan.modelVersion || 'Unknown'}</strong></div>
-      <div><span>Detections</span><strong>{scan.detectionCount ?? 0}</strong></div>
+      <div><span>Model version</span><strong>{scan.isPhotoOnly ? 'Not run' : scan.modelVersion || 'Unknown'}</strong></div>
+      <div><span>Detections</span><strong>{scan.isPhotoOnly ? 'Not analyzed' : scan.detectionCount ?? 0}</strong></div>
       <div><span>Reported condition</span><strong>{conditionLabel(scan.userCondition)}</strong></div>
       <div><span>Preprocessing</span><strong>{Number.isFinite(scan.preprocessingSummary?.segmentation_mask_coverage_percent) ? `${scan.preprocessingSummary.segmentation_mask_coverage_percent}% mask coverage` : 'Not saved'}</strong></div>
     </div>
@@ -109,7 +110,7 @@ export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact 
   const farm = farms.find(item => item.id === (scan.farmId || plot?.farmId));
   const recordedDate = scan.importedFromLegacy && scan.legacyDisplayTime ? scan.legacyDisplayTime : scan.createdAt ? dateLabel(scan.createdAt) : 'Date unavailable';
   function requireConnection() {
-    if (navigator.onLine) return true;
+    if (browserWorkspace || navigator.onLine) return true;
     onNotify('Connect to the internet to change a scan.', 'error');
     return false;
   }
@@ -152,7 +153,7 @@ export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact 
       </div>
     </div>
     <div className="scan-card-footer">
-      <div className="scan-stats"><span><strong>{formatConfidence(scan.topConfidence)}</strong><span>Model confidence</span></span><span><strong>{scan.detectionCount ?? 0}</strong><span>Detected regions</span></span>{scan.shareForResearch && <span className="shared-label">Shared for research</span>}</div>
+      <div className="scan-stats"><span><strong>{scan.isPhotoOnly ? 'Pending' : formatConfidence(scan.topConfidence)}</strong><span>{scan.isPhotoOnly ? 'Model analysis' : 'Model confidence'}</span></span><span><strong>{scan.isPhotoOnly ? 'Saved' : scan.detectionCount ?? 0}</strong><span>{scan.isPhotoOnly ? 'Photo record' : 'Detected regions'}</span></span>{scan.shareForResearch && <span className="shared-label">Shared for research</span>}</div>
       <button className="button button-soft record-details-button" type="button" aria-label={open ? 'Hide details' : 'View details'} aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen(value => !value)}>{open ? 'Hide details' : 'View details'}<ChevronDown className={open ? 'rotated' : ''} size={16} /></button>
     </div>
     {open && <div id={detailsId} className="scan-card-expanded">
@@ -165,8 +166,8 @@ export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact 
         <button className="button button-soft" type="button" disabled={busy || !services.sharing || (!scan.shareForResearch && formatConfidence(scan.topConfidence) === 'Unavailable')} onClick={handleShare}>{busy ? 'Working…' : scan.shareForResearch ? 'Revoke research sharing' : 'Share result for research'}</button>
         <button className="button button-text danger-text" type="button" disabled={busy || !services.deletion} onClick={handleDelete}><Trash2 size={15} /> Delete scan</button>
       </div>
-      {!scan.shareForResearch && formatConfidence(scan.topConfidence) === 'Unavailable' && <p className="helper-text">Research sharing requires a valid model confidence value. This scan can still be reviewed and deleted.</p>}
-      {(!services.sharing || !services.deletion) && <p className="helper-text">Sharing and secure removal are temporarily unavailable. Your saved records remain private.</p>}
+      {!browserWorkspace && !scan.shareForResearch && formatConfidence(scan.topConfidence) === 'Unavailable' && <p className="helper-text">Research sharing requires a valid model confidence value. This scan can still be reviewed and deleted.</p>}
+      {(!services.sharing || !services.deletion) && <p className="helper-text">{browserWorkspace ? 'This record is saved only in this browser. Research sharing will require the account service.' : 'Sharing and secure removal are temporarily unavailable. Your saved records remain private.'}</p>}
     </div>}
   </article>;
 }
@@ -184,7 +185,7 @@ export function TaskRow({ task, uid, plotName, onNotify, today = localDateKey(ne
   const overdue = state === 'overdue';
   const stateLabel = { done: 'Done', today: 'Due today', overdue: 'Overdue', upcoming: 'Upcoming', undated: 'No due date' }[state];
   async function toggle() {
-    if (!navigator.onLine) { onNotify('Connect to the internet to update a care task.', 'error'); return; }
+    if (!browserWorkspace && !navigator.onLine) { onNotify('Connect to the internet to update a care task.', 'error'); return; }
     setBusy(true);
     try {
       await setTaskCompleted(uid, task, !task.completedAt);
@@ -200,7 +201,7 @@ export function TaskRow({ task, uid, plotName, onNotify, today = localDateKey(ne
 }
 
 export function NetworkBanner({ online }) {
-  if (online) return null;
+  if (online || browserWorkspace) return null;
   return <div className="network-banner" role="status"><CircleAlert size={17} /> You are offline. Scans and record changes need a connection.</div>;
 }
 

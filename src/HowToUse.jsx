@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { ArrowRight, Camera, CheckCircle2, ClipboardList, HelpCircle, Leaf, ScanLine, ShieldCheck, Sprout, X } from 'lucide-react';
 import { supportedConditions } from './conditions';
 import { useDialog } from './use-dialog';
+import { browserWorkspace } from './firebase';
 
 const introSteps = [
   { icon: Sprout, title: 'Give each scan a home', text: 'Add a farm and a pineapple plot or batch. Scans, observations, and care tasks stay together in that plot’s history.' },
   { icon: Camera, title: 'Take a clear photo', text: 'Choose a plot, upload a photo or use your camera, then check the preview. Use good light and keep the sample visible and in focus.' },
-  { icon: ScanLine, title: 'Read the result, choose a next step', text: 'Scan Pineapple runs the existing detection model and saves its result. Read the condition, model confidence, and suggested next step. Optional AI advice explains the saved result; it does not replace the model or a field inspection.' }
+  { icon: ScanLine, title: 'Read the result, choose a next step', text: browserWorkspace ? 'The real scan backend and Gemini are pending deployment. For now, save your photo for later and keep observations and care tasks in its plot. A saved photo is clearly marked Not analyzed.' : 'Scan Pineapple runs the existing detection model and saves its result. Read the condition, model confidence, and suggested next step. Optional AI advice explains the saved result; it does not replace the model or a field inspection.' }
 ];
 
 export function hasSeenIntroduction(uid) {

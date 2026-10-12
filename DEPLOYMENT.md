@@ -1,12 +1,25 @@
 # AGRI-VISION deployment
 
+## Current static frontend
+
+The October 12 frontend defaults to a login-free browser workspace. Build and
+deploy the existing Vite app normally; no account or Firebase configuration is
+required to use browser mode. `VITE_ACCOUNT_MODE=required` restores the original
+authenticated frontend with its existing `VITE_WORKSPACE_MODE` configuration.
+
+Browser mode uses IndexedDB for records and photo blobs, makes no Firebase or
+workspace/scanner requests, and keeps existing Firebase records separate. The
+real model and Gemini are still unavailable on the public release. Users can
+save photos for later, clearly marked Not analyzed. Settings exports a JSON
+backup with records and photos. See `docs/browser-workspace-2026-10-12.md`.
+
 The current free pilot uses live Firebase Authentication and Firestore with three local processes: Vite, Flask inference, and a private workspace service. The cloud architecture below is a future deployment path requiring an explicitly authorized billing upgrade for Firebase Storage and Functions.
 
 ## Current free pilot
 
 On this configured Mac, run `npx --yes --package=node@22 -c 'npm run pilot'`, then open `http://127.0.0.1:5173/`. The launcher starts Flask on 5001, the workspace service on 5002, and Vite on 5173. All bind to `127.0.0.1`. Vite proxies `/api/workspace/*` to the workspace service before forwarding other `/api/*` requests to Flask.
 
-Keep `VITE_WORKSPACE_MODE=local` in `.env`. The launcher supplies `FIREBASE_PROJECT_ID`, `MODEL_VERSION`, the local photo directory, and application-default credentials derived from the owner's existing Firebase CLI session. The credential file is outside the checkout with permissions `0600`; its directory and photo root use `0700`. No service-account key or billing account is created. The workspace service verifies every Firebase ID token, including revocation, and derives photo ownership from the verified token.
+Keep `VITE_ACCOUNT_MODE=required` and `VITE_WORKSPACE_MODE=local` in `.env`. The launcher supplies `FIREBASE_PROJECT_ID`, `MODEL_VERSION`, the local photo directory, and application-default credentials derived from the owner's existing Firebase CLI session. The credential file is outside the checkout with permissions `0600`; its directory and photo root use `0700`. No service-account key or billing account is created. The workspace service verifies every Firebase ID token, including revocation, and derives photo ownership from the verified token.
 
 Photos are stored at `~/.local/share/agri-vision/agri-vision-pilot/photos/{uid}/scans/{scanId}/`. Firebase stores the records and consent state. Research sharing/revocation and scan/account deletion execute the same handlers as the future cloud callables. A scan's `storageProvider` records whether its photos belong to this local service or Firebase Storage. Remove a scan through the service where its photos are stored.
 

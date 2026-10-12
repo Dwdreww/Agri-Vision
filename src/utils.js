@@ -24,6 +24,7 @@ export function statusLabel(scan) {
 }
 
 export function readableError(error) {
+  if (error?.name === 'BrowserStorageError') return error.message;
   const code = error?.code || '';
   const known = {
     'auth/email-already-in-use': 'This email already has an account.',

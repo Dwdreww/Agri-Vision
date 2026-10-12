@@ -1,5 +1,17 @@
 # Pilot rollout status
 
+## Static browser frontend — 2026-10-12
+
+The frontend now defaults to a login-free browser workspace. Farms, plots,
+photo/scan records, observations, and tasks persist in IndexedDB on the current
+browser, with a records-and-photos backup export in Settings. The original
+account services and private Firebase records are retained separately and are
+enabled with `VITE_ACCOUNT_MODE=required`. Real model scanning and Gemini still
+await the public backend deployment. Saved photos are explicitly Not analyzed.
+
+The deployment path remains GitHub `main` to the existing Vercel project. See
+`browser-workspace-2026-10-12.md` for persistence behavior and verification.
+
 The free local pilot is connected to live Firebase Authentication and Firestore. Real inference, private photos on this Mac, research sharing, and deletion run through local services. Firebase billing remains disabled. The existing Vercel frontend was deployed on October 10 in monitoring mode; public scanning and cloud photo storage remain pending.
 
 ## Public frontend release on 2026-10-10
