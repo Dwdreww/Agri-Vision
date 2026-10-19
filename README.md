@@ -10,6 +10,18 @@ app_port: 7860
 
 AGRI-VISION is a pineapple monitoring app for a small pilot. A signed-in user can organize farms and plots, scan a pineapple photo, compare saved results over time, add field observations, and track one-time care tasks. Approved researchers can view only scan results that an account owner explicitly contributes; photos and private farm records stay in that owner's account.
 
+## Using the app
+
+After sign-in or **Continue as guest**, Overview offers a setup checklist and
+shortcuts for photo checks, field notes, and History. The checklist explains why
+farms and growing areas are needed and can be paused and resumed. Help is visible
+in the header, with additional guidance on each working page.
+
+English is the default. Choose Filipino on the sign-in screen or in Settings;
+the choice is remembered in this browser. Saved names, notes, and canonical
+model results are unchanged. See [farmer guidance](docs/farmer-guidance-2026-10-19.md)
+for behavior, terminology, language boundaries, and verification.
+
 ## How it is built
 
 The frontend opens at the sign-in screen. **Continue as guest** needs no email

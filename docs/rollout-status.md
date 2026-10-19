@@ -1,5 +1,14 @@
 # Pilot rollout status
 
+## Farmer guidance revision — 2026-10-19
+
+Overview is the starting page after account sign-in or guest entry. It offers an
+optional setup checklist and task shortcuts. Plain labels, contextual guidance,
+and visible Help explain each action's purpose. English is the default, with a
+remembered Filipino option on sign-in, Settings, and the workspace menu. Existing
+records and model integration remain intact. All 45 frontend tests and the
+production build pass. See [farmer guidance verification](farmer-guidance-2026-10-19.md).
+
 ## Static browser frontend — 2026-10-12
 
 The frontend opens at sign-in with **Continue as guest** for entry without

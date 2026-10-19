@@ -1,5 +1,10 @@
 # Guided ribbon design — selected concept B
 
+The October 19 [farmer guidance revision](farmer-guidance-2026-10-19.md) retains
+this visual style and updates the starting page to Overview, simplifies labels,
+and adds optional setup guidance plus English / Filipino selection. The notes
+below describe the October 10 release.
+
 The user selected **B, Guided ribbon**, after comparing three interactive layouts. It supersedes the October 8 illustrated field journal. The agreed direction is crisp and professional, minimal with purposeful motion, with equal attention to phones and desktops.
 
 ## Interface

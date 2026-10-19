@@ -1,3 +1,5 @@
+import { getLocale } from './i18n.js';
+
 export function timestampMs(value) {
   if (!value) return 0;
   if (typeof value.toMillis === 'function') return value.toMillis();
@@ -12,7 +14,7 @@ export function newestFirst(items, key = 'createdAt') {
 
 export function dateLabel(value, options = { month: 'short', day: 'numeric', year: 'numeric' }) {
   const millis = timestampMs(value);
-  return millis ? new Intl.DateTimeFormat(undefined, options).format(millis) : 'Just now';
+  return millis ? new Intl.DateTimeFormat(getLocale(), options).format(millis) : 'Just now';
 }
 
 export function conditionLabel(value) {

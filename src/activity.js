@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 import { classifyCondition } from './conditions.js';
 import { conditionLabel, timestampMs } from './utils.js';
 
@@ -67,7 +68,8 @@ export function buildActivity(data, { search = '', type = 'all', farmId = '', pl
     const text = [entry.type, plot?.name, farm?.name, record.topClass, record.statusLabel,
       record.statusType, record.title, record.note, record.notes, record.dueDate, entry.date,
       record.condition && conditionLabel(record.condition),
-      entry.type === 'scan' && classifyCondition(record.topClass).label].filter(Boolean).join(' ').toLowerCase();
+      entry.type === 'scan' && classifyCondition(record.topClass).label,
+      t(record.topClass), t(record.statusLabel), record.condition && t(conditionLabel(record.condition))].filter(Boolean).join(' ').toLowerCase();
     return !query || text.includes(query);
   }).sort((a, b) => {
     const rank = date => !date ? 3 : date === today ? 0 : date > today ? 1 : 2;

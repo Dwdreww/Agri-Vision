@@ -677,3 +677,78 @@ svg { flex: none; }
   .scan-preview, .scan-preview:hover, .button:not(:disabled):hover { transform: none; }
   .scan-sweep { display: none; }
 }
+
+/* First-use guidance shares the existing visual language. */
+.language-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; }
+.language-picker label { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
+.language-picker select { min-height: 44px; padding: 8px 28px 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; }
+.auth-card > .language-picker { justify-content: flex-end; margin-bottom: 26px; }
+.help-trigger { gap: 6px; padding-inline: 9px; flex: none; }
+.page-help { border-block: 1px solid var(--line); color: var(--muted); padding: 3px 0; font-size: 13px; }
+.page-help summary { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 44px; color: var(--green); font-weight: 550; }
+.page-help summary::after { content: '+'; margin-left: auto; font-size: 19px; }
+.page-help[open] summary::after { content: '−'; }
+.page-help > div { max-width: 780px; padding-bottom: 12px; }
+.page-help p { margin: 8px 0; }
+.setup-guide { border-top: 3px solid var(--green); }
+.setup-guide .section-heading { align-items: flex-start; }
+.setup-count { flex: none; border-radius: 100px; padding: 7px 12px; font-size: 12px; background: var(--green-light); color: var(--green); }
+.setup-checklist { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 22px; padding: 0; margin: 24px 0; list-style: none; }
+.setup-checklist li { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.setup-step-number { width: 29px; height: 29px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.setup-checklist .complete .setup-step-number { background: var(--green); border-color: var(--green); color: var(--button-ink); }
+.setup-checklist h3 { display: flex; align-items: center; gap: 7px; font-size: 15px; line-height: 1.4; margin: 3px 0 9px; }
+.setup-checklist h3 svg { display: none; }
+.setup-checklist p { color: var(--muted); font-size: 13px; margin: 0 0 9px; }
+.setup-checklist .setup-example { font-size: 12px; }
+.setup-checklist .text-link { text-align: left; min-height: 44px; }
+.setup-footer, .setup-return { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 24px; font-size: 12px; color: var(--muted); }
+.setup-footer { border-top: 1px solid var(--line); padding-top: 12px; }
+.setup-footer .text-link, .setup-return .text-link { min-height: 44px; }
+.setup-return > span { display: flex; align-items: center; gap: 8px; }
+.overview-shortcuts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.overview-shortcuts button { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; color: var(--ink); display: grid; grid-template-columns: 26px minmax(0,1fr) 16px; gap: 7px 10px; text-align: left; }
+.overview-shortcuts button:hover { background: var(--green-light); border-color: var(--green); }
+.overview-shortcuts button > svg:first-child { grid-row: 1 / 3; color: var(--green); }
+.overview-shortcuts button > svg:last-child { grid-column: 3; grid-row: 1 / 3; align-self: center; color: var(--green); }
+.overview-shortcuts strong { grid-column: 2; font-size: 14px; }
+.overview-shortcuts span { grid-column: 2; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.setup-next { display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid var(--line); border-radius: 8px; padding: 20px; background: var(--green-light); }
+.setup-next h2 { font-size: 18px; margin: 0 0 8px; }
+.setup-next p { font-size: 13px; margin: 0; color: var(--muted); }
+.form-purpose { font-size: 14px; color: var(--muted); margin: 0; }
+.help-destinations { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.help-destinations h2 { font-size: 20px; margin: 0 0 10px; }
+.help-destinations p, .help-view > .panel p { color: var(--muted); font-size: 14px; }
+.help-destinations .text-link { min-height: 44px; }
+.help-view .help-step-grid { gap: 24px; }
+.help-view .help-step-grid h3 { margin: 10px 0; }
+.settings-card > p { font-size: 13px; color: var(--muted); }
+@media (max-width: 1100px) {
+  .setup-checklist { grid-template-columns: minmax(0,1fr); gap: 22px; }
+  .overview-shortcuts { grid-template-columns: minmax(0,1fr); gap: 10px; }
+  .overview-shortcuts button { padding: 16px; }
+}
+@media (max-width: 760px) {
+  .workspace-header { padding-inline: 18px; gap: 8px; }
+  .workspace-header .theme-toggle { display: none; }
+  .workspace-header .brand-word { font-size: 20px; }
+  .workspace-header .brand-mark { width: 25px; }
+  .workspace-header > .flex { gap: 4px; }
+  .help-trigger { padding-inline: 7px; font-size: 12px; }
+  .account-menu-trigger { min-width: 36px; padding: 0; }
+  .setup-guide .section-heading { flex-wrap: wrap; }
+  .setup-next { align-items: flex-start; flex-direction: column; }
+  .help-destinations { grid-template-columns: minmax(0,1fr); }
+  .help-view .help-step-grid { grid-template-columns: minmax(0,1fr); }
+  .bottom-nav button { font-size: 10px; overflow-wrap: anywhere; }
+  .auth-card > .language-picker { margin-bottom: 24px; }
+  .auth-mobile-brand { margin-bottom: 28px; }
+}
+@media (max-width: 360px) {
+  .workspace-header .brand-word { font-size: 18px; }
+  .workspace-header .brand-mark { width: 20px; }
+  .help-trigger svg { display: none; }
+}
+.setup-checklist p, .page-intro p, .section-description { font-size: 14px; }
+.setup-checklist .setup-example, .setup-footer, .setup-return, .overview-shortcuts span { font-size: 13px; }
