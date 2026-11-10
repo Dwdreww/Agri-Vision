@@ -28,7 +28,7 @@ SCANNER_PROFILE = "yolov8m-efficientnet-b0-regions"
 YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", os.path.join(BASE_DIR, "models", DETECTOR_ARTIFACT))
 EFFNET_MODEL_PATH = os.getenv("EFFNET_MODEL_PATH", os.path.join(BASE_DIR, "models", CLASSIFIER_ARTIFACT))
 CLASSIFIER_METRICS_PATH = os.path.join(BASE_DIR, "models", "efficientnet_metrics.json")
-YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.65"))
+YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.50"))
 EFFNET_CONF_THRESHOLD = float(os.getenv("EFFNET_CONF_THRESHOLD", "0.35"))
 if not math.isfinite(EFFNET_CONF_THRESHOLD) or not 0 <= EFFNET_CONF_THRESHOLD <= 1:
     raise ValueError("EFFNET_CONF_THRESHOLD must be between 0 and 1")

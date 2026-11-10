@@ -61,7 +61,7 @@ QA output and design archives from deployed files.
 The existing `Drewtopiaa/AgriVision` Space remains on `cpu-basic`. Set the public
 Firebase project/API key and `FIREBASE_AUTH_MODE=rest`; never upload the owner's
 Admin credential. The user-supplied files and exact hashes are in the
-[model inventory](models/README.md). YOLO defaults to 0.65. EfficientNet requires at least 0.35 confidence; the Space sets
+[model inventory](models/README.md). YOLO defaults to 0.50. EfficientNet requires at least 0.35 confidence; the Space sets
 `EFFNET_CONF_THRESHOLD=0.35`.
 
 ```sh
@@ -72,7 +72,7 @@ python scripts/deploy-space.py
 
 The deployment script verifies the allowlisted release hashes, existing owner,
 repository and free CPU hardware. Current backend commit:
-`575d5ebdf374c73f0c193e6ec648e4428851b21c`. The API processes images in memory;
+`678e87824179e195b7ba6a92ff84e87303da37c4`. The API processes images in memory;
 photo persistence belongs to the private workspace service.
 
 ## Local development and recovery
