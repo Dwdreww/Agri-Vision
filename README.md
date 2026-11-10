@@ -15,7 +15,7 @@ Settings are secondary destinations. See [interface notes](DESIGN.md).
 
 ## Photos and model results
 
-YOLOv8m `models/bestv3.pt` selects regions at a default threshold of **0.50**.
+YOLOv8m `models/bestv3.pt` selects regions at a default threshold of **0.65**.
 The unannotated rectangular crops go to EfficientNet-B0
 (`models/efficientnet_pineapple_bestv2.pth`). A crop needs at least **0.35**
 classifier confidence. Lower scores are **Uncertain**. No detected region

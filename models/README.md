@@ -20,7 +20,7 @@ fixed allowlist, checks finite weights, and strictly copies the state into the
 installed one-class architecture. Checkpoint configuration is not used to build
 executable model code. `bestv3.inspection.json` records the detector inspection.
 
-The default detector confidence threshold is **0.50 (50%)**.
+The default detector confidence threshold is **0.65 (65%)**.
 `YOLO_CONF_THRESHOLD` can override it at startup.
 
 EfficientNet accepts a crop classification only when its maximum softmax score

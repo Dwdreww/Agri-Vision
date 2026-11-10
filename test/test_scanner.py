@@ -234,7 +234,7 @@ class ScannerTests(unittest.TestCase):
 
     def test_low_confidence_nonfinite_and_invalid_boxes_are_skipped(self):
         boxes = [
-            SimpleNamespace(conf=torch.tensor([0.49])),
+            SimpleNamespace(conf=torch.tensor([0.64])),
             SimpleNamespace(conf=torch.tensor([float("nan")])),
             SimpleNamespace(conf=torch.tensor([0.8]), xyxy=torch.tensor([[50, 50, 20, 20]])),
             SimpleNamespace(conf=torch.tensor([0.8]), xyxy=torch.tensor([[float("nan"), 0, 20, 20]])),
@@ -257,7 +257,7 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(health["image_versions"], ["original", "yolo_crops"])
         self.assertEqual(health["classifier_input"], "yolo-bounding-box-crops")
         self.assertEqual(health["classifier_confidence_threshold"], 0.35)
-        self.assertEqual(health["yolo_confidence_threshold"], 0.50)
+        self.assertEqual(health["yolo_confidence_threshold"], 0.65)
         self.assertEqual(self.client.post("/api/predict").status_code, 401)
         self.assertEqual(self.client.options("/api/predict").status_code, 204)
 
