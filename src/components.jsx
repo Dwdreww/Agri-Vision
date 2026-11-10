@@ -1,6 +1,6 @@
 import { t } from './i18n.js';
-import { useEffect, useId, useState } from 'react';
-import { Camera, ChevronDown, CircleAlert, ClipboardList, ImageOff, Leaf, LoaderCircle, ScanLine, Sprout, Trash2 } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Camera, ChevronDown, CircleAlert, ClipboardList, ImageOff, ImagePlus, Leaf, LoaderCircle, ScanLine, ShieldCheck, Sprout, Trash2 } from 'lucide-react';
 import { deleteScan, fetchPrivateImage, linkImportedScan, revokeScan, setTaskCompleted, shareScan } from './data';
 import { conditionLabel, dateLabel, readableError, statusLabel } from './utils';
 import { useWorkspaceServices } from './services';
@@ -9,25 +9,33 @@ import { localDateKey, taskStatus } from './activity';
 import RecommendationCard from './Recommendations.jsx';
 import { formatConfidence } from './recommendation-utils.js';
 import { browserWorkspace } from './firebase';
+import { isDetectionOnly } from './detection-regions.js';
+import { scanAssessment } from './scan-assessment.js';
 
-export function Brand({ compact = false }) {
-  return <div className={`brand ${compact ? 'brand-compact' : ''}`}>
-    <span className="brand-mark"><Sprout size={27} strokeWidth={1.6} /></span>
-    <span className="brand-word">{t("agri")}<span>{t("vision.")}</span><small>{t("Pineapple health")}</small></span>
-  </div>;
-}
+export { Brand } from './Brand.jsx';
+import { Brand } from './Brand.jsx';
 
 export function StatusPill({ type = 'monitor', children }) {
   return <span className={`status-pill status-${type}`}>{t(children)}</span>;
 }
 
-export function ConditionBadge({ label }) {
-  const condition = classifyCondition(label);
-  return <span className={`condition-badge type-${condition.type}`} title={t(condition.description)}>{t(condition.label)}</span>;
+export function ScanResultIndicators({ statusType, label, confidence, photoOnly = false }) {
+  const type = ['healthy', 'risk', 'monitor'].includes(statusType) ? statusType : 'monitor';
+  const score = formatConfidence(confidence);
+  return <div className="scan-result-indicators">
+    <StatusPill type={photoOnly ? 'neutral' : type}>
+      {photoOnly ? 'Not analyzed' : statusLabel({ statusType: type, statusLabel: label })}
+    </StatusPill>
+    {!photoOnly && score !== 'Unavailable' && <span className="scan-confidence">
+      {t('Model confidence')} <strong>{score}</strong>
+    </span>}
+  </div>;
 }
 
-export function ConfidenceHelp() {
-  return <details className="confidence-help"><summary>{t("About confidence and condition types")}</summary><p>{t("Model confidence shows how strongly the image matches a trained class. It is not the chance that the plant has a disease and does not confirm a diagnosis. Unavailable means no valid confidence was saved.")}</p><p>{t("Pathological diseases are associated with pathogens. Physiological disorders concern plant growth or development. The scanner recognizes seven classes; other conditions may need assessment by an agricultural professional.")}</p></details>;
+export function ConditionBadge({ label, classificationAvailable = true }) {
+  if (!classificationAvailable) return <span className="condition-badge type-unclassified">{t('Classifier not installed')}</span>;
+  const condition = classifyCondition(label);
+  return <span className={`condition-badge type-${condition.type}`} title={t(condition.description)}>{t(condition.label)}</span>;
 }
 
 export function EmptyState({ icon: Icon = Leaf, title, description, action, onAction }) {
@@ -46,9 +54,17 @@ export function SectionTitle({ eyebrow, title, action }) {
   </div>;
 }
 
-export function PrivateImage({ path, provider, alt }) {
+export function PrivateImage({ path, provider, alt, retryable = false }) {
+  const services = useWorkspaceServices();
+  const [attempt, setAttempt] = useState(0);
   const [url, setUrl] = useState(null);
   const [error, setError] = useState('');
+  const serviceWasReady = useRef(services.photos);
+  useEffect(() => {
+    const restored = services.photos && !serviceWasReady.current;
+    serviceWasReady.current = services.photos;
+    if (restored && error) setAttempt(value => value + 1);
+  }, [services.photos, error]);
   useEffect(() => {
     if (!path) return undefined;
     let active = true;
@@ -64,48 +80,32 @@ export function PrivateImage({ path, provider, alt }) {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [path, provider]);
+  }, [path, provider, attempt]);
   if (!path) return <div className="image-placeholder"><ImageOff size={25} />{t(" No saved photo")}</div>;
-  if (error) return <div className="image-placeholder"><ImageOff size={25} /> {t(error)}</div>;
+  if (error) return <div className="image-placeholder" role={retryable ? "status" : undefined} title={t(error)}><ImageOff size={25} /><span>{t(error)}</span>{retryable && <button className="button button-soft" type="button" onClick={() => setAttempt(value => value + 1)}>{t("Retry photo")}</button>}</div>;
   if (!url) return <div className="image-placeholder"><LoaderCircle className="spin" size={25} />{t(" Loading photo")}</div>;
   return <img className="record-photo" src={url} alt={alt} />;
 }
 
-export function PredictionDetails({ scan, showPhotos = false }) {
-  return <div className="prediction-details">
-    {showPhotos && <div className="photo-pair">
-      <div><span className="field-label">{t("Uploaded image")}</span><PrivateImage path={scan.preparedImagePath} provider={scan.storageProvider} alt={t("Prepared pineapple image")} /></div>
-      {!scan.isPhotoOnly && <div><span className="field-label">{t("Annotated result")}</span><PrivateImage path={scan.annotatedImagePath} provider={scan.storageProvider} alt={t("Pineapple check with model annotations")} /></div>}
-    </div>}
-    {scan.message && <p>{t(scan.message)}</p>}
-    {scan.recommendation && <p className="recommendation"><strong>{scan.isPhotoOnly ? t("Suggested next step") : t("Scanner’s suggested next step")}</strong><br />{t(scan.recommendation)}</p>}
-    <div className="detail-grid">
-      <div><span>{t("Condition type")}</span><strong><ConditionBadge label={scan.topClass} /></strong></div>
-      <div><span>{t("Model version")}</span><strong>{scan.isPhotoOnly ? t("Not run") : scan.modelVersion || t("Unknown")}</strong></div>
-      <div><span>{t("Detections")}</span><strong>{scan.isPhotoOnly ? t("Not analyzed") : scan.detectionCount ?? 0}</strong></div>
-      <div><span>{t("Reported condition")}</span><strong>{t(conditionLabel(scan.userCondition))}</strong></div>
-      <div><span>{t("Preprocessing")}</span><strong>{Number.isFinite(scan.preprocessingSummary?.segmentation_mask_coverage_percent) ? t("{value0}% mask coverage", { value0: scan.preprocessingSummary.segmentation_mask_coverage_percent }) : t("Not saved")}</strong></div>
+function RecordPhoto({ scan }) {
+  return <PrivateImage path={scan.preparedImagePath} provider={scan.storageProvider}
+    alt={t("Original pineapple photo")} retryable />;
+}
+
+export function ScanNextStep({ assessment, userCondition }) {
+  return <div className="result-summary">
+    <div className="recommendation-box">
+      <ShieldCheck size={19} aria-hidden="true" />
+      <p><strong>{t("Suggested next step")}</strong><span>{t(assessment.next)}</span></p>
     </div>
-    {Array.isArray(scan.detections) && scan.detections.length > 0 && <div className="detail-list">
-      <h4>{t("Detected regions")}</h4>
-      {scan.detections.map((item, index) => <div key={index} className="detail-row">
-        <span>#{index + 1} {item.pretty_class_name || item.class_name || t("Region")} <ConditionBadge label={item.pretty_class_name || item.class_name} /></span>
-        <span>{formatConfidence(item.efficientnet_confidence_percent)}{t(" model confidence")}</span>
-      </div>)}
-    </div>}
-    {Array.isArray(scan.preprocessingSteps) && scan.preprocessingSteps.length > 0 && <div className="detail-list">
-      <h4>{t("Image preparation")}</h4>
-      {scan.preprocessingSteps.map((step, index) => <div key={index} className="detail-row">
-        <span>{step.name || t("Step {value0}", { value0: index + 1 })}</span><span>{step.used_for || ''}</span>
-      </div>)}
-    </div>}
+    {userCondition && <p className="helper-text">{t("Your field observation")}: {t(conditionLabel(userCondition))}</p>}
   </div>;
 }
 
-export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact = false }) {
+export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact = false, defaultExpanded = false, overview = false, overviewActions, onScanAnother }) {
   const services = useWorkspaceServices();
   const detailsId = useId();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultExpanded);
   const [busy, setBusy] = useState(false);
   const plot = plots.find(item => item.id === scan.plotId);
   const farm = farms.find(item => item.id === (scan.farmId || plot?.farmId));
@@ -144,31 +144,55 @@ export function ScanCard({ scan, uid, plots = [], farms = [], onNotify, compact 
     } catch (error) { onNotify(readableError(error), 'error'); }
     finally { setBusy(false); }
   }
-  return <article className={`scan-card ${compact ? 'scan-card-compact' : ''}`}>
+  const detectionOnly = isDetectionOnly(scan);
+  const assessment = scanAssessment(scan.topClass, scan.isPhotoOnly, detectionOnly);
+  const nextScan = onScanAnother && <button className="button button-primary" type="button" disabled={busy} onClick={onScanAnother}>
+    <ImagePlus size={18} aria-hidden="true" />{t(scan.isPhotoOnly ? 'Add another photo' : 'Scan another image')}
+  </button>;
+  const header = <>
     <div className="scan-card-top">
       {compact && scan.hasPhotos && scan.preparedImagePath ? <div className="scan-thumbnail"><PrivateImage path={scan.preparedImagePath} provider={scan.storageProvider} alt={t("Saved pineapple sample")} /></div> : <div className="scan-icon"><ScanLine size={22} /></div>}
       <div className="scan-card-title">
-        <div className="scan-title-line"><h3>{t(scan.topClass || "Check result")}</h3><StatusPill type={scan.statusType}>{t(statusLabel(scan))}</StatusPill></div>
-        <ConditionBadge label={scan.topClass} />
+        <div className="scan-title-line"><h3>{t(assessment.title)}</h3></div>
+        <ScanResultIndicators statusType={scan.statusType} label={scan.statusLabel}
+          confidence={detectionOnly ? null : scan.topConfidence} photoOnly={scan.isPhotoOnly} />
         <p className="scan-context"><span>{t(recordedDate)}</span><span>{farm ? `${farm.name} · ` : ''}{plot?.name || t("Unassigned")}</span></p>
       </div>
+    </div></>;
+  const actions = <>
+      <div className="record-actions">
+        {!scan.isPhotoOnly && <button className="button button-soft" type="button" disabled={busy || !services.sharing || (!scan.shareForResearch && formatConfidence(scan.topConfidence) === 'Unavailable')} onClick={handleShare}>{busy ? t("Working…") : scan.shareForResearch ? t("Revoke research sharing") : t("Share result for research")}</button>}
+        <button className="button button-text danger-text" type="button" disabled={busy || !services.deletion} onClick={handleDelete}><Trash2 size={15} />{t(scan.isPhotoOnly ? 'Delete photo' : 'Delete check')}</button>
+      </div>
+      {!browserWorkspace && !scan.shareForResearch && formatConfidence(scan.topConfidence) === 'Unavailable' && <p className="helper-text">{t("This result is unavailable for research sharing.")}</p>}
+      {(!services.sharing || !services.deletion) && <p className="helper-text">{browserWorkspace ? t(scan.isPhotoOnly ? 'This photo is saved only in this browser.' : "This record is saved only in this browser. Research sharing will require the account service.") : t("Sharing and secure removal are temporarily unavailable. Your saved records remain private.")}</p>}
+  </>;
+  if (overview) return <article className="scan-card scan-card-overview">
+    <div className="scan-result-heading">{header}{nextScan}</div>
+    {scan.shareForResearch && <p className="shared-label">{t("Shared for research")}</p>}
+    <div className="overview-main scan-result-body">
+      <ScanNextStep assessment={assessment} userCondition={scan.userCondition} />
+      <div className="overview-photo"><RecordPhoto scan={scan} /></div>
     </div>
+    {!scan.isPhotoOnly && !detectionOnly && <RecommendationCard uid={uid} scanId={scan.id}/>}
+    {overviewActions}
+    <details className="overview-disclosure"><summary>{t("Record actions")}</summary><div>
+      {scan.importedFromLegacy && !scan.plotId && <label className="field compact-field"><span>{t("Link this old check to a growing area")}</span><select value="" onChange={handleLink} disabled={busy}><option value="">{t("Select growing area")}</option>{plots.filter(item => !item.archivedAt).map(item => <option key={item.id} value={item.id}>{farms.find(farm => farm.id === item.farmId)?.name || t("Farm")} · {item.name}</option>)}</select></label>}
+      {actions}
+    </div></details>
+  </article>;
+  return <article className={`scan-card ${compact ? 'scan-card-compact' : ''}`}>{header}
     <div className="scan-card-footer">
-      <div className="scan-stats"><span><strong>{scan.isPhotoOnly ? t("Pending") : formatConfidence(scan.topConfidence)}</strong><span>{scan.isPhotoOnly ? t("Model analysis") : t("Model confidence")}</span></span><span><strong>{scan.isPhotoOnly ? t("Saved") : scan.detectionCount ?? 0}</strong><span>{scan.isPhotoOnly ? t("Photo record") : t("Detected regions")}</span></span>{scan.shareForResearch && <span className="shared-label">{t("Shared for research")}</span>}</div>
-      <button className="button button-soft record-details-button" type="button" aria-label={open ? t("Hide details") : t("View details")} aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen(value => !value)}>{open ? t("Hide details") : t("View details")}<ChevronDown className={open ? 'rotated' : ''} size={16} /></button>
+      {scan.shareForResearch && <span className="shared-label">{t("Shared for research")}</span>}
+      {open && nextScan}
+      <button className="button button-text record-details-button" type="button" aria-label={open ? t("Hide details") : t("View details")} aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen(value => !value)}>{open ? t("Hide details") : t("View details")}<ChevronDown className={open ? 'rotated' : ''} size={16} /></button>
     </div>
     {open && <div id={detailsId} className="scan-card-expanded">
       {scan.importedFromLegacy && !scan.plotId && <label className="field compact-field"><span>{t("Link this old check to a growing area")}</span><select value="" onChange={handleLink} disabled={busy}><option value="">{t("Select growing area")}</option>{plots.filter(item => !item.archivedAt).map(item => <option key={item.id} value={item.id}>{farms.find(farm => farm.id === item.farmId)?.name || t("Farm")} · {item.name}</option>)}</select></label>}
-      {scan.importedFromLegacy && <p className="callout subtle"><CircleAlert size={17} />{t(" Imported from this browser. This record has no saved photos or detailed model output.")}</p>}
-      <ConfidenceHelp />
-      <PredictionDetails scan={scan} showPhotos={Boolean(scan.hasPhotos)} />
-      <RecommendationCard uid={uid} scanId={scan.id} />
-      <div className="record-actions">
-        <button className="button button-soft" type="button" disabled={busy || !services.sharing || (!scan.shareForResearch && formatConfidence(scan.topConfidence) === 'Unavailable')} onClick={handleShare}>{busy ? t("Working…") : scan.shareForResearch ? t("Revoke research sharing") : t("Share result for research")}</button>
-        <button className="button button-text danger-text" type="button" disabled={busy || !services.deletion} onClick={handleDelete}><Trash2 size={15} />{t(" Delete check")}</button>
-      </div>
-      {!browserWorkspace && !scan.shareForResearch && formatConfidence(scan.topConfidence) === 'Unavailable' && <p className="helper-text">{t("Research sharing requires a valid model confidence value. This check can still be reviewed and deleted.")}</p>}
-      {(!services.sharing || !services.deletion) && <p className="helper-text">{browserWorkspace ? t("This record is saved only in this browser. Research sharing will require the account service.") : t("Sharing and secure removal are temporarily unavailable. Your saved records remain private.")}</p>}
+      <RecordPhoto scan={scan} />
+      <ScanNextStep assessment={assessment} userCondition={scan.userCondition} />
+      {!scan.isPhotoOnly && !detectionOnly && <RecommendationCard uid={uid} scanId={scan.id} />}
+      {actions}
     </div>}
   </article>;
 }

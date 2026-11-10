@@ -1,0 +1,107 @@
+{
+  "artifact": "efficientnet_pineapple_best.pth",
+  "sha256": "1cdd173059c8e4e4ae510983617b55335155575cda400c2bc1ddc679acbf8de0",
+  "inspection_date": "2026-11-07",
+  "activation_status": "superseded",
+  "active": false,
+  "format": "PyTorch state_dict",
+  "safe_load": {
+    "weights_only": true,
+    "map_location": "cpu",
+    "all_tensors_finite": true
+  },
+  "backbone_weight_compatibility": "torchvision EfficientNet-B0 (strict feature-state loading passed)",
+  "output_count": 4,
+  "head_weight_key": "classifier.1.1.weight",
+  "head_weight_shape": [
+    4,
+    1280
+  ],
+  "head_bias_key": "classifier.1.1.bias",
+  "head_bias_shape": [
+    4
+  ],
+  "class_to_idx": {
+    "No_Disease": 0,
+    "fruit_fasciation": 1,
+    "fruit_rot": 2,
+    "mutli_crown": 3
+  },
+  "output_index_to_label": {
+    "0": "No_Disease",
+    "1": "fruit_fasciation",
+    "2": "fruit_rot",
+    "3": "mutli_crown"
+  },
+  "training_script": {
+    "path": "training/effnettrainv2.py",
+    "sha256": "89e7fd48f668c98e824f7bf1d0db058d810d1f8279884a9120ae03e7b787e2e4",
+    "mapping_source": "image_datasets['train'].classes from torchvision.datasets.ImageFolder",
+    "checkpoint_selection": "Highest validation macro F1"
+  },
+  "classifier_head_definition": {
+    "backbone": "torchvision EfficientNet-B0",
+    "classifier.0": "Dropout(p=0.2, inplace=True), retained from torchvision",
+    "classifier.1.0": "Dropout(p=0.3, inplace=True)",
+    "classifier.1.1": "Linear(in_features=1280, out_features=4, bias=True)",
+    "inference_mode": "eval"
+  },
+  "validation_preprocessing": {
+    "color_order": "RGB",
+    "resize": [
+      224,
+      224
+    ],
+    "resize_policy": "Center on a black square, then torchvision.transforms.Resize((224, 224))",
+    "tensor_scale": "uint8 / 255",
+    "normalize_mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "normalize_std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "augmentation": false
+  },
+  "training_image_scope": {
+    "stated_scope": "pineapple disease crops",
+    "evidence": "Training script describes pineapple crops and ImageFolder reads existing crop files",
+    "crop_generation": "Not included in the supplied script"
+  },
+  "verification": {
+    "full_state_strict_load": true,
+    "cpu_forward_output_shape": [
+      1,
+      4
+    ],
+    "finite_logits_and_probabilities": true,
+    "named_prediction_enabled": true
+  },
+  "required_before_activation": [],
+  "metrics_artifact": {
+    "path": "efficientnet_metrics.json",
+    "purpose": "Class-order metadata from prior training; accuracy metrics do not describe the replacement checkpoint.",
+    "replacement_validation_accuracy": null
+  },
+  "display_labels": {
+    "0": "No Disease",
+    "1": "Fruit Fasciation Disorder",
+    "2": "Fruit Rot Disease",
+    "3": "Multiple Crown Disorder"
+  },
+  "active_pipeline": {
+    "profile": "yolov8m-efficientnet-b0-regions",
+    "model_version": "yolov8m-28a5c00ab63b-effnetb0-1cdd173059c8-roi-v3",
+    "classification_scope": "unannotated YOLO region crops",
+    "no_region_behavior": "No Detection with null confidence; classifier not called",
+    "summary_policy": "Highest classifier confidence among predicted diseases/disorders, otherwise highest No Disease confidence",
+    "detector_artifact": "bestv3.pt",
+    "detector_sha256": "28a5c00ab63b92c052f5e4701cdc0f79f857f59ca6c7f5e81e78e78f41b544c5",
+    "classifier_confidence_threshold": 0.35,
+    "below_threshold_behavior": "Uncertain, condition index/name null; YOLO crop retained"
+  },
+  "label_confirmation": "User confirmed the existing four-output order for this checkpoint on 2026-11-07."
+}

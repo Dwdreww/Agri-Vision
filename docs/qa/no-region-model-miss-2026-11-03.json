@@ -1,0 +1,89 @@
+{
+  "date": "2026-11-03",
+  "model_version": "yolov8m-273092bf7850-effnetb0-43adddf64b22-roi-v1",
+  "reported_photo_dimensions": {
+    "width": 678,
+    "height": 452
+  },
+  "baseline_replays": 2,
+  "saved_and_replayed_detection_count": 0,
+  "active_detection_threshold": 0.15,
+  "finding": "The active detector scores this photo below the configured threshold; saved detections are empty and the interface faithfully displays zero regions. EfficientNet receives no crop.",
+  "probes": [
+    {
+      "image": "reported-photo",
+      "input_size": 640,
+      "confidence_threshold": 0.15,
+      "boxes": 0,
+      "top_detection_confidence_percent": null,
+      "raw_top_item_score_percent": 0.3182
+    },
+    {
+      "image": "reported-photo",
+      "input_size": 640,
+      "confidence_threshold": 0.05,
+      "boxes": 0,
+      "top_detection_confidence_percent": null,
+      "raw_top_item_score_percent": 0.3182
+    },
+    {
+      "image": "reported-photo",
+      "input_size": 640,
+      "confidence_threshold": 0.01,
+      "boxes": 0,
+      "top_detection_confidence_percent": null,
+      "raw_top_item_score_percent": 0.3182
+    },
+    {
+      "image": "reported-photo",
+      "input_size": 640,
+      "confidence_threshold": 0.001,
+      "boxes": 1,
+      "top_detection_confidence_percent": 0.3182,
+      "raw_top_item_score_percent": 0.3182
+    },
+    {
+      "image": "reported-photo",
+      "input_size": 960,
+      "confidence_threshold": 0.15,
+      "boxes": 0,
+      "top_detection_confidence_percent": null,
+      "raw_top_item_score_percent": 1.4919
+    },
+    {
+      "image": "reported-photo",
+      "input_size": 1280,
+      "confidence_threshold": 0.15,
+      "boxes": 0,
+      "top_detection_confidence_percent": null,
+      "raw_top_item_score_percent": 12.8442
+    },
+    {
+      "image": "known-positive-photo",
+      "input_size": 640,
+      "confidence_threshold": 0.15,
+      "boxes": 1,
+      "top_detection_confidence_percent": 71.1577,
+      "raw_top_item_score_percent": 71.1577
+    },
+    {
+      "image": "reported-photo",
+      "input_size": 1536,
+      "confidence_threshold": 0.15,
+      "boxes": 0,
+      "top_detection_confidence_percent": null,
+      "bboxes": []
+    },
+    {
+      "image": "reported-photo",
+      "input_size": 1920,
+      "confidence_threshold": 0.15,
+      "boxes": 0,
+      "top_detection_confidence_percent": null,
+      "bboxes": []
+    }
+  ],
+  "configuration_changed": false,
+  "records_changed": false,
+  "training_coverage_cause_confirmed": false
+}

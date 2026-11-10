@@ -1,8 +1,21 @@
 # Pineapple condition types
 
+## Current model status — November 3, 2026
+
+The active scanner pairs YOLOv8m regions with the replacement EfficientNet-B0.
+The supplied metrics confirm outputs 0–3 as `No_Disease`, `fruit_fasciation`,
+`fruit_rot`, and `mutli_crown`. They map to No Disease, Fruit Fasciation Disorder,
+Fruit Rot Disease, and Multiple Crown Disorder respectively. The raw training
+spelling is preserved separately from the readable canonical condition.
+
+The seven labels below remain the full reference for current and historical
+records. Crown Rot, Mealybug Wilt and Root Rot are shown as earlier-model-only
+labels in the guide; the current classifier cannot predict them. See
+[model inventory](../models/README.md).
+
 The UI derives a condition type from the existing model label. It does not change
 stored predictions, backend contracts, research exports, or model capabilities.
-The seven supported classes are listed in `app.py`.
+The seven reference labels for historical classifications are listed in `src/conditions.js`.
 
 | Model label | Display type |
 | --- | --- |

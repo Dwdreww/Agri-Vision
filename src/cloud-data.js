@@ -31,7 +31,7 @@ async function workspaceRequest(path, { method = 'POST', body, blob = false } = 
 }
 
 function serverAction(name, data) {
-  if (workspaceMode === 'local') return workspaceRequest(`actions/${name}`, { body: data });
+  if (['local', 'cloud'].includes(workspaceMode)) return workspaceRequest(`actions/${name}`, { body: data });
   if (workspaceMode !== 'firebase') throw new Error('This workspace action is not enabled yet.');
   return httpsCallable(functions, name)(data);
 }
@@ -117,6 +117,10 @@ export function archiveFarm(uid, id) {
   return updateDoc(userDocument(uid, 'farms', id), { archivedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 
+export function restoreFarm(uid, id) {
+  return updateDoc(userDocument(uid, 'farms', id), { archivedAt: null, updatedAt: serverTimestamp() });
+}
+
 export function archivePlot(uid, id) {
   return updateDoc(userDocument(uid, 'plots', id), { archivedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
@@ -160,7 +164,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: 'image/jpeg' });
 }
 
-export async function saveScan(uid, scanId, plotId, farmId, preparedFile, prediction, userCondition) {
+export async function saveScan(uid, scanId, plotId, farmId, preparedFile, prediction, userCondition, { cultivar, growthStage } = {}) {
   const basePath = `users/${uid}/scans/${scanId}`;
   const preparedImagePath = `${basePath}/prepared.jpg`;
   const annotatedImagePath = `${basePath}/annotated.jpg`;
@@ -169,7 +173,7 @@ export async function saveScan(uid, scanId, plotId, farmId, preparedFile, predic
   if (existing.exists()) return scanId;
   let recordWriteStarted = false;
   try {
-    if (workspaceMode === 'local') {
+    if (['local', 'cloud'].includes(workspaceMode)) {
       const photos = new FormData();
       photos.append('prepared', preparedFile, 'prepared.jpg');
       photos.append('annotated', dataUrlToBlob(prediction.annotated_image), 'annotated.jpg');
@@ -193,14 +197,23 @@ export async function saveScan(uid, scanId, plotId, farmId, preparedFile, predic
     message: prediction.message || '',
     recommendation: prediction.recommendation || '',
     modelVersion: prediction.model_version || 'unknown',
+    inferenceMode: prediction.inference_mode || 'classification',
+    scannerProfile: prediction.scanner_profile || '',
+    classificationScope: prediction.classification_scope || '',
+    classificationAvailable: prediction.classification_available !== false && !prediction.is_photo_only,
+    classifierConfidenceThreshold: Number.isFinite(prediction.classifier_confidence_threshold) ? prediction.classifier_confidence_threshold : null,
+    isPhotoOnly: Boolean(prediction.is_photo_only),
+    detectorTopConfidence: numericConfidence(prediction.detector_top_confidence),
     imageWidth: Number(prediction.image_width) || 0,
     imageHeight: Number(prediction.image_height) || 0,
     preparedImagePath,
     annotatedImagePath,
-    storageProvider: workspaceMode === 'local' ? 'local' : 'firebase',
+    storageProvider: workspaceMode === 'cloud' ? 'vercel-blob' : workspaceMode === 'local' ? 'local' : 'firebase',
     hasPhotos: true,
     importedFromLegacy: false,
     userCondition: userCondition || null,
+    cultivar: typeof cultivar === 'string' ? cultivar.trim() || null : null,
+    ...(growthStage && { growthStage }),
     shareForResearch: false,
       createdAt: serverTimestamp()
     });
@@ -212,7 +225,7 @@ export async function saveScan(uid, scanId, plotId, farmId, preparedFile, predic
         if (confirmed.exists()) return scanId;
       } catch { throw error; }
     }
-    if (workspaceMode === 'local') {
+    if (['local', 'cloud'].includes(workspaceMode)) {
       await workspaceRequest(`scans/${scanId}/photos`, { method: 'DELETE' }).catch(() => {});
     } else if (workspaceMode === 'firebase') {
       await Promise.allSettled([
@@ -279,7 +292,7 @@ export async function importLegacyHistory(uid, rows) {
 }
 
 export function fetchPrivateImage(path, provider) {
-  if (provider === 'local') {
+  if (['local', 'vercel-blob'].includes(provider)) {
     const match = /^users\/([^/]+)\/scans\/([A-Za-z0-9_-]{1,128})\/(prepared|annotated)\.jpg$/.exec(path || '');
     if (!match || match[1] !== auth.currentUser?.uid) return Promise.reject(new Error('Your account does not have access to this photo.'));
     return workspaceRequest(`photos/${match[2]}/${match[3]}.jpg`, { method: 'GET', blob: true });
@@ -292,7 +305,7 @@ export async function cleanupUnsavedScan(uid, scanId) {
   // Only delete after the server confirms there is no scan record for these files.
   const confirmed = await getDocFromServer(userDocument(uid, 'scans', scanId));
   if (confirmed.exists()) return;
-  if (workspaceMode === 'local') {
+  if (['local', 'cloud'].includes(workspaceMode)) {
     await workspaceRequest(`scans/${scanId}/photos`, { method: 'DELETE' });
     return;
   }

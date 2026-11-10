@@ -1,5 +1,8 @@
 import fs from 'node:fs';
 
+// Google authorization keys use an AQ. prefix; retain support for legacy keys.
+const apiKeyPattern = /^(?:[A-Za-z0-9_-]{1,256}|AQ\.[A-Za-z0-9_-]{1,253})$/;
+
 export function parseAiEnvironment(text) {
   const fields = {};
   for (const raw of text.split(/\r?\n/)) {
@@ -9,7 +12,7 @@ export function parseAiEnvironment(text) {
     if (!match || Object.hasOwn(fields, match[1])) throw new Error('The private AI config contains an unknown or repeated setting.');
     let value = match[2];
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    if (match[1] === 'GEMINI_API_KEY' ? !/^[A-Za-z0-9_-]{1,256}$/.test(value) : !/^[1-9]\d{0,4}$/.test(value)) throw new Error('The private AI config contains an invalid setting.');
+    if (match[1] === 'GEMINI_API_KEY' ? !apiKeyPattern.test(value) : !/^[1-9]\d{0,4}$/.test(value)) throw new Error('The private AI config contains an invalid setting.');
     fields[match[1]] = value;
   }
   return fields;
@@ -26,7 +29,7 @@ export function loadAiEnvironment(file, environment = process.env) {
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const inherited = environment.GEMINI_API_KEY?.trim();
   if (inherited) {
-    if (!/^[A-Za-z0-9_-]{1,256}$/.test(inherited)) throw new Error('GEMINI_API_KEY has an invalid format.');
+    if (!apiKeyPattern.test(inherited)) throw new Error('GEMINI_API_KEY has an invalid format.');
     return { ...fileEnvironment, GEMINI_API_KEY: inherited };
   }
   return fileEnvironment;

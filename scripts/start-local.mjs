@@ -35,7 +35,7 @@ fs.chmodSync(photoDirectory, 0o700);
 const env = { ...withoutAiSecrets(process.env), ...withoutAiSecrets(publicEnv), GOOGLE_APPLICATION_CREDENTIALS: credentialPath,
   FIREBASE_PROJECT_ID: project, FIREBASE_CONFIG: JSON.stringify({ projectId: project }),
   AGRI_VISION_SERVER_MODE: 'local', AGRI_VISION_PHOTO_DIR: photoDirectory,
-  VITE_WORKSPACE_MODE: 'local', MODEL_VERSION: 'pilot-v1', FLASK_DEBUG: 'false', HOST: '127.0.0.1', PORT: '5001' };
+  VITE_WORKSPACE_MODE: 'local', FLASK_DEBUG: 'false', HOST: '127.0.0.1', PORT: '5001' };
 
 const children = [];
 let stopping = false;

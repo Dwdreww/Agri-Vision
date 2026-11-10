@@ -4,7 +4,7 @@ import * as browser from './browser-data.js';
 
 const data = browserWorkspace ? browser : cloud;
 export const { collectionNames, watchAccount, createFarm, createPlot, updateFarm, updatePlot,
-  archiveFarm, archivePlot, createObservation, createTask, setTaskCompleted, saveScan,
+  archiveFarm, restoreFarm, archivePlot, createObservation, createTask, setTaskCompleted, saveScan,
   shareScan, revokeScan, deleteScan, deleteAccount, linkImportedScan, importLegacyHistory,
   fetchPrivateImage, cleanupUnsavedScan } = data;
 export const { userCollection, userDocument } = cloud;

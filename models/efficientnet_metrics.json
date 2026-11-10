@@ -1,0 +1,74 @@
+{
+    "best_val_accuracy": 1.0,
+    "classification_report": {
+        "No_Disease": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 5.0
+        },
+        "fruit_fasciation": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 2.0
+        },
+        "fruit_rot": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 3.0
+        },
+        "mutli_crown": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 4.0
+        },
+        "accuracy": 1.0,
+        "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 14.0
+        },
+        "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 14.0
+        }
+    },
+    "confusion_matrix": [
+        [
+            5,
+            0,
+            0,
+            0
+        ],
+        [
+            0,
+            2,
+            0,
+            0
+        ],
+        [
+            0,
+            0,
+            3,
+            0
+        ],
+        [
+            0,
+            0,
+            0,
+            4
+        ]
+    ],
+    "class_indices": {
+        "0": "No_Disease",
+        "1": "fruit_fasciation",
+        "2": "fruit_rot",
+        "3": "mutli_crown"
+    }
+}

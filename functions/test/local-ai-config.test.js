@@ -20,3 +20,21 @@ test("private AI config parses a small whitelist and never reaches frontend chil
   assert.throws(() => loadAiEnvironment(file, {}), /chmod 600/);
   assert.deepEqual(withoutAiSecrets({ GEMINI_API_KEY: "secret", GOOGLE_API_KEY: "other", VITE_GEMINI_API_KEY: "bad", VITE_FIREBASE_API_KEY: "public", PATH: "path" }), { VITE_FIREBASE_API_KEY: "public", PATH: "path" });
 });
+
+
+test("Google authorization keys work from the private file and inherited environment without weakening input guards", async t => {
+  const { parseAiEnvironment, loadAiEnvironment, withoutAiSecrets } = await import("../../scripts/local-ai-config.mjs");
+  const key = "AQ." + "a".repeat(50);
+  assert.equal(parseAiEnvironment(`GEMINI_API_KEY=${key}\n`).GEMINI_API_KEY, key);
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "agri-auth-key-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const file = path.join(directory, "ai.env");
+  await fs.writeFile(file, `GEMINI_API_KEY=${key}\n`, { mode: 0o600 });
+  assert.equal(loadAiEnvironment(file, {}).GEMINI_API_KEY, key);
+  assert.equal(loadAiEnvironment(file, { GEMINI_API_KEY: key }).GEMINI_API_KEY, key);
+  assert.deepEqual(withoutAiSecrets({ GEMINI_API_KEY: key, VITE_GEMINI_API_KEY: key }), {});
+  for (const value of ["AQ.a b", "AQ.$(command)", "AQ.a;command", "AQ.a\rOther", "other.key", "AQ." + "a".repeat(254)]) {
+    assert.throws(() => parseAiEnvironment(`GEMINI_API_KEY=${value}`));
+    assert.throws(() => loadAiEnvironment(file, { GEMINI_API_KEY: value }));
+  }
+});

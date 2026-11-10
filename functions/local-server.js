@@ -9,7 +9,8 @@ const operations = require("./index");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const photos = require("./local-photos");
-const { createStore, createRecommendationService } = require("./local-recommendations");
+const { createStore, createRecommendationService, readScanForRecommendation } = require("./local-recommendations");
+const { PUBLIC_AI_ERROR_CODES } = require("./recommendations");
 
 function createApp({ auth = getAuth(), db = getFirestore(), handlers = operations,
   photoStore = photos, apiKey = process.env.GEMINI_API_KEY || "", recommendationProvider,
@@ -62,9 +63,10 @@ async function requireActiveAccount(uid) {
 
 const recommendations = createRecommendationService({
   store: recommendationStore || createStore({ scanDirectory: photoStore.scanDirectory, rootDirectory: process.env.AGRI_VISION_PHOTO_DIR }),
-  getScan: async (uid, id) => {
-    const record = await db.doc(`users/${uid}/scans/${id}`).get();
-    return record.exists ? record.data() : null;
+  getScan: (uid, id) => readScanForRecommendation(db, uid, id),
+  async loadPhoto(uid, id, scan) {
+    if (scan.storageProvider !== "local" || scan.hasPhotos === false) return null;
+    return fs.readFile(path.join(photoStore.scanDirectory(uid, id), "prepared.jpg"));
   },
   requireActiveAccount, withAccountLock, apiKey, provider: recommendationProvider,
   ...(now ? { now } : {}), ...(fetchImpl ? { fetchImpl } : {}), ...(timeoutMs ? { timeoutMs } : {})
@@ -137,7 +139,7 @@ app.use((error, _req, res, _next) => {
   const status = error.status || codes[error.code] || (error.code === "ENOENT" ? 404 : 500);
   if (error.retryAfter) res.set("Retry-After", String(error.retryAfter));
   if (status >= 500) console.error("Workspace operation failed:", error.code || error.name);
-  res.status(status).json({ ...(error.result || {}), error: error.result ? error.message : status >= 500 ? "The operation could not be completed. Please retry." : error.message });
+  res.status(status).json({ ...(error.result || {}), ...(PUBLIC_AI_ERROR_CODES.includes(error.code) ? { errorCode: error.code } : {}), error: error.result ? error.message : status >= 500 ? "The operation could not be completed. Please retry." : error.message });
 });
 
 return app;

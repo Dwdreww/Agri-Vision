@@ -6,9 +6,9 @@ const path = require("node:path");
 const os = require("node:os");
 const { test } = require("node:test");
 const { createStore, createRecommendationService } = require("../local-recommendations");
-const { MODEL, prepareScan } = require("../recommendations");
+const { MODEL, CONSENT_VERSION, prepareScan } = require("../recommendations");
 
-const consent = { regenerate: false, consentVersion: "2026-10-08" };
+const consent = { regenerate: false, consentVersion: CONSENT_VERSION };
 const scan = { topClass: "Crown Rot Disease", topConfidence: 90, detectionCount: 1, statusType: "risk", modelVersion: "pilot-v1" };
 function lockFactory() {
   const locks = new Map();
@@ -39,6 +39,7 @@ async function fixture(t, { provider, apiKey = "test-key", limits = {} } = {}) {
   const options = { store, apiKey, now: () => new Date(clock), withAccountLock,
     requireActiveAccount: async uid => { if (!active.has(uid)) throw Object.assign(new Error("Account unavailable."), { status: 409 }); },
     getScan: async (uid, id) => records.get(`${uid}:${id}`),
+    loadPhoto: async () => Buffer.from([0xff, 0xd8, 0xff]),
     provider: async (...args) => { calls++; return provider ? provider(...args) : advice(clock); } };
   return { root, store, scanDirectory, records, active, options, withAccountLock,
     service: createRecommendationService(options), calls: () => calls,
@@ -52,7 +53,11 @@ function deferred() {
 
 test("read is side-effect free; generation caches privately and restart reuses it", async t => {
   const f = await fixture(t);
-  assert.deepEqual(await f.service.read("alice", "one"), { available: true, recommendation: null });
+  const initial = await f.service.read("alice", "one");
+  assert.equal(initial.available, true);
+  assert.equal(initial.recommendation.source, "standard");
+  assert.ok(initial.recommendation.actions.length >= 2);
+  await assert.rejects(fs.access(path.join(f.scanDirectory("alice", "one"), "recommendations.json")));
   assert.equal(f.calls(), 0);
   const result = await f.service.generate("alice", "one", consent);
   assert.equal(result.recommendation.source, "gemini");
@@ -66,7 +71,7 @@ test("read is side-effect free; generation caches privately and restart reuses i
   assert.equal(f.calls(), 1);
   assert.deepEqual(f.records.get("alice:one"), scan);
   f.records.set("alice:one", { ...scan, topConfidence: 70 });
-  assert.equal((await f.service.read("alice", "one")).recommendation, null);
+  assert.equal((await f.service.read("alice", "one")).recommendation.source, "standard");
 });
 
 test("missing key and unknown or incomplete scans return standard without provider requests", async t => {
@@ -75,7 +80,7 @@ test("missing key and unknown or incomplete scans return standard without provid
   assert.equal(result.available, false);
   assert.equal(result.recommendation.source, "standard");
   assert.equal(f.calls(), 0);
-  assert.equal((await f.service.read("alice", "one")).recommendation, null);
+  assert.equal((await f.service.read("alice", "one")).recommendation.source, "standard");
   const enabled = createRecommendationService({ ...f.options, apiKey: "key" });
   for (const value of [{ ...scan, topClass: "Unknown" }, { ...scan, topClass: "No Detection", detectionCount: 0 }, { ...scan, topConfidence: null }, { topClass: "Unknown" }]) {
     f.records.set("alice:one", value);
@@ -207,9 +212,9 @@ test("corrupt sidecar is ignored and invalid private limits fail at startup", as
   const f = await fixture(t);
   await f.store.write("alice", "one", prepareScan(scan).fingerprint, advice());
   await fs.writeFile(path.join(f.scanDirectory("alice", "one"), "recommendations.json"), "not-json");
-  assert.equal((await f.service.read("alice", "one")).recommendation, null);
+  assert.equal((await f.service.read("alice", "one")).recommendation.source, "standard");
   await f.store.write("alice", "one", prepareScan(scan).fingerprint, { source: "gemini", generatedAt: new Date().toISOString() });
-  assert.equal((await f.service.read("alice", "one")).recommendation, null);
+  assert.equal((await f.service.read("alice", "one")).recommendation.source, "standard");
   assert.throws(() => createStore({ scanDirectory: f.scanDirectory, rootDirectory: f.root, globalDailyLimit: 51 }));
   assert.throws(() => createStore({ scanDirectory: f.scanDirectory, rootDirectory: f.root, ownerDailyLimit: 0 }));
 });
@@ -226,4 +231,57 @@ test("default limits allow ten attempts per owner and fifty across the pilot", a
   }
   await assert.rejects(f.store.reserve("anotherOwner", now), error => error.status === 429);
   assert.equal(JSON.parse(await fs.readFile(path.join(f.root, ".ai-usage-global.json"))).count, 50);
+});
+
+test("valid saved advice from the previous prompt stays readable without new quota or writes", async t => {
+  const { createHash } = require("node:crypto");
+  const f = await fixture(t);
+  const prepared = prepareScan(scan);
+  const legacyFingerprint = createHash("sha256").update(JSON.stringify({ input: prepared.input, status: scan.statusType,
+    model: MODEL, prompt: "pineapple-care-v2", schema: 1 })).digest("hex");
+  const saved = { ...advice(), actions: [{ text: "Inspect the crown and central tissues in person.", reason: "A physical check is needed." }] };
+  await f.store.write("alice", "one", legacyFingerprint, saved);
+  assert.deepEqual((await f.service.read("alice", "one")).recommendation, saved);
+  assert.deepEqual((await f.service.generate("alice", "one", consent)).recommendation, saved);
+  assert.equal(f.calls(), 0);
+  await assert.rejects(fs.access(path.join(f.root, ".ai-usage-global.json")));
+  f.records.set("alice:one", { ...scan, topConfidence: 70 });
+  assert.equal((await f.service.read("alice", "one")).recommendation.source, "standard");
+});
+
+test("previous-prompt advice with unsafe steps is not reused", async t => {
+  const { createHash } = require("node:crypto");
+  const f = await fixture(t);
+  const prepared = prepareScan(scan);
+  const legacyFingerprint = createHash("sha256").update(JSON.stringify({ input: prepared.input, status: scan.statusType,
+    model: MODEL, prompt: "pineapple-care-v2", schema: 1 })).digest("hex");
+  await f.store.write("alice", "one", legacyFingerprint, { ...advice(), actions: [{ text: "Burn all plants.", reason: "Remove the problem." }] });
+  assert.equal((await f.service.read("alice", "one")).recommendation.source, "standard");
+});
+
+test("a recommendation disk-write failure keeps the saved scan and safe fallback available", async t => {
+  const f = await fixture(t);
+  const service = createRecommendationService({ ...f.options, store: { ...f.store, write: async () => {
+    throw Object.assign(new Error("PRIVATE_DISK_PATH"), { code: "ENOSPC" });
+  } } });
+  await assert.rejects(service.generate("alice", "one", consent), error => error.status === 503
+    && error.code === "AI_STORAGE_UNAVAILABLE" && error.result.recommendation.source === "standard" && !error.message.includes("PRIVATE"));
+  assert.deepEqual(f.records.get("alice:one"), scan);
+});
+
+test("inconclusive guidance remains available if its cache cannot be saved", async t => {
+  const f = await fixture(t);
+  f.records.set("alice:one", { ...scan, topClass: "Unknown", detectionCount: 0 });
+  const service = createRecommendationService({ ...f.options, store: { ...f.store, write: async () => { throw new Error("PRIVATE_DISK_ERROR"); } } });
+  await assert.rejects(service.generate("alice", "one", consent), error => error.code === "AI_STORAGE_UNAVAILABLE"
+    && error.result.recommendation.source === "standard" && !error.message.includes("PRIVATE"));
+  assert.equal(f.calls(), 0);
+});
+
+test("a quota persistence failure consumes no provider request and returns safe guidance", async t => {
+  const f = await fixture(t);
+  const service = createRecommendationService({ ...f.options, store: { ...f.store, reserve: async () => { throw new Error("PRIVATE_QUOTA_ERROR"); } } });
+  await assert.rejects(service.generate("alice", "one", consent), error => error.code === "AI_STORAGE_UNAVAILABLE"
+    && error.result.recommendation.source === "standard" && !error.message.includes("PRIVATE"));
+  assert.equal(f.calls(), 0);
 });

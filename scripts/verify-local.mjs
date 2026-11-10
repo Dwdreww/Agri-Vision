@@ -17,6 +17,7 @@ const privateRoot = path.join(os.homedir(), '.config', 'agri-vision');
 const fixtureFile = path.join(privateRoot, 'qa-session.json');
 process.env.GOOGLE_APPLICATION_CREDENTIALS ||= path.join(privateRoot, `${config.VITE_FIREBASE_PROJECT_ID}-local-session.json`);
 const require = createRequire(path.join(root, 'functions', 'package.json'));
+const { CONSENT_VERSION } = require('./recommendations.js');
 const adminApp = require('firebase-admin/app').initializeApp({ projectId: config.VITE_FIREBASE_PROJECT_ID });
 const adminAuth = require('firebase-admin/auth').getAuth(adminApp);
 const adminDb = require('firebase-admin/firestore').getFirestore(adminApp);
@@ -80,6 +81,11 @@ async function saveScan(item, id, prediction) {
     farmId: 'qa-farm', plotId: 'qa-plot', createdAt: Timestamp.now(), statusType: prediction.status_type,
     statusLabel: prediction.status_label, topClass: prediction.top_class, topConfidence: prediction.top_confidence,
     detectionCount: prediction.detection_count, modelVersion: prediction.model_version, userCondition: 'unsure',
+    inferenceMode: prediction.inference_mode, classificationAvailable: prediction.classification_available,
+    scannerProfile: prediction.scanner_profile, classificationScope: prediction.classification_scope,
+    imageWidth: prediction.image_width, imageHeight: prediction.image_height,
+    preprocessingSteps: prediction.preprocessing_steps, preprocessingSummary: prediction.preprocessing_summary,
+    detectorTopConfidence: prediction.detector_top_confidence,
     storageProvider: 'local', hasPhotos: true, shareForResearch: false,
     preparedImagePath: `users/${item.uid}/scans/${id}/prepared.jpg`,
     annotatedImagePath: `users/${item.uid}/scans/${id}/annotated.jpg`,
@@ -106,20 +112,52 @@ try {
   assert.equal((await request(null, '/api/workspace/photos/qa-scan/annotated.jpg', { headers: { Authorization: 'Bearer invalid' } })).status, 401);
   passed('scanner and private service reject signed-out and invalid sessions');
   const image = new FormData();
-  image.append('image', new Blob([await fs.readFile(path.join(root, 'pineappletest.png'))], { type: 'image/png' }), 'pineappletest.png');
+  // This existing photo fixture produces a YOLO box, exercising both real
+  // models. It checks the integration contract, not classification accuracy.
+  image.append('image', new Blob([await fs.readFile(path.join(root, 'assets/plates/preview-photo.webp'))], { type: 'image/webp' }), 'pineapple.webp');
   const inference = await request(owner, '/api/predict', { method: 'POST', body: image });
   const prediction = await inference.json();
   assert.equal(inference.status, 200, JSON.stringify(prediction));
   assert.equal(prediction.success, true);
-  assert.equal(prediction.model_version, 'pilot-v1');
+  const scannerHealth = await (await request(null, '/api/health')).json();
+  assert.equal(prediction.model_version, scannerHealth.model_version);
+  assert.equal(prediction.scanner_profile, scannerHealth.scanner_profile);
+  assert.match(prediction.model_version, /^yolov8m-[a-f0-9]{12}-effnetb0-[a-f0-9]{12}-roi-v3$/);
+  assert.equal(scannerHealth.classification_ready, true);
+  assert.equal(scannerHealth.detector_artifact, 'bestv4.pt');
+  assert.equal(scannerHealth.detector_sha256, 'f53a9470b13c1e41e4821ce0622c38676fe4e4c48c7d63dbc355002631b53826');
+  assert.equal(scannerHealth.model_version, 'yolov8m-f53a9470b13c-effnetb0-03af1ac8bba3-roi-v3');
+  assert.deepEqual(scannerHealth.detector_classes, { 0: 'item' });
+  assert.equal(scannerHealth.active_classifier, 'EfficientNet-B0');
+  assert.equal(prediction.classification_available, true);
+  assert.equal(prediction.inference_mode, 'region-classification');
+  assert.equal(prediction.classification_scope, 'yolo-regions');
+  assert.ok(prediction.detection_count > 0);
+  assert.ok([...scannerHealth.classifier_classes, 'Uncertain'].includes(prediction.top_class));
+  assert.ok(Number.isFinite(prediction.top_confidence));
+  const labels = JSON.parse(await fs.readFile(path.join(root, 'models/efficientnet_metrics.json'), 'utf8')).class_indices;
+  for (const region of prediction.detections) {
+    assert.equal(region.detector_class_id, 0);
+    assert.equal(region.detector_class_name, 'item');
+    assert.equal(region.classification_available, true);
+    if (region.classification_accepted) assert.equal(region.classifier_class_name, labels[region.classifier_class_index]);
+    else { assert.equal(region.pretty_class_name, 'Uncertain'); assert.equal(region.classifier_class_index, null); }
+    assert.ok(Number.isFinite(region.efficientnet_confidence_percent));
+    assert.ok(Number.isFinite(region.yolo_confidence_percent));
+  }
   assert.ok(prediction.annotated_image.startsWith('data:image/jpeg;base64,'));
-  passed('real authenticated YOLO and EfficientNet prediction');
+  passed('real authenticated YOLO regions paired with the supplied four-class EfficientNet');
   const invalidPhotos = new FormData();
   invalidPhotos.append('prepared', new Blob([Buffer.from(prediction.annotated_image.split(',')[1], 'base64')], { type: 'image/jpeg' }), 'prepared.jpg');
   invalidPhotos.append('annotated', new Blob(['invalid image'], { type: 'image/jpeg' }), 'annotated.jpg');
   assert.equal((await request(owner, '/api/workspace/scans/qa-invalid/photos', { method: 'POST', body: invalidPhotos })).status, 400);
   await assert.rejects(fs.access(path.join(photoRoot, owner.uid, 'scans', 'qa-invalid')));
   await saveScan(owner, 'qa-scan', prediction);
+  const savedDetection = (await getDocFromServer(doc(owner.db, 'users', owner.uid, 'scans', 'qa-scan'))).data();
+  assert.equal(savedDetection.classificationAvailable, true);
+  assert.equal(savedDetection.inferenceMode, 'region-classification');
+  assert.equal(savedDetection.topConfidence, prediction.top_confidence);
+  assert.deepEqual(savedDetection.detections, prediction.detections);
   const photo = await request(owner, '/api/workspace/photos/qa-scan/annotated.jpg');
   assert.equal(photo.status, 200);
   assert.equal(photo.headers.get('cache-control'), 'no-store');
@@ -135,14 +173,35 @@ try {
   const recommendationsBefore = (await getDocFromServer(doc(owner.db, 'users', owner.uid, 'scans', 'qa-scan'))).data();
   const cachedAdvice = await request(owner, '/api/workspace/scans/qa-scan/recommendations');
   assert.equal(cachedAdvice.status, 200);
-  assert.equal(typeof (await cachedAdvice.json()).available, 'boolean');
+  const basicAdvice = await cachedAdvice.json();
+  assert.equal(typeof basicAdvice.available, 'boolean');
+  assert.equal(basicAdvice.recommendation.source, 'standard');
+  assert.ok(basicAdvice.recommendation.actions.length >= 2);
+  if (process.argv.includes('--with-ai')) {
+    const generated = await request(owner, '/api/workspace/scans/qa-scan/recommendations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regenerate: false, consentVersion: CONSENT_VERSION }) });
+    const result = await generated.json();
+    assert.equal(generated.status, 200, JSON.stringify(result));
+    assert.equal(result.recommendation.source, 'gemini');
+    assert.ok(result.recommendation.actions.length >= 2);
+    await fs.access(path.join(photoRoot, owner.uid, 'scans', 'qa-scan', 'recommendations.json'));
+    const evidence = path.join(root, 'output', 'scan-care-2026-11-03');
+    await fs.mkdir(evidence, { recursive: true });
+    await fs.writeFile(path.join(evidence, 'live-advice.json'), JSON.stringify({
+      syntheticFixtureOnly: true, condition: prediction.top_class,
+      classifierConfidence: prediction.top_confidence, modelVersion: prediction.model_version,
+      recommendation: result.recommendation
+    }, null, 2) + '\n');
+    passed('live Gemini actions grounded in the original scan photo and saved EffNet classification');
+  }
   const invalidConsent = await request(owner, '/api/workspace/scans/qa-scan/recommendations', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate: false }) });
   assert.equal(invalidConsent.status, 400);
   if (!health.recommendations) {
     const fallback = await request(owner, '/api/workspace/scans/qa-scan/recommendations', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ regenerate: false, consentVersion: '2026-10-08' }) });
+      body: JSON.stringify({ regenerate: false, consentVersion: CONSENT_VERSION }) });
     assert.equal(fallback.status, 200);
     const fallbackBody = await fallback.json();
     assert.equal(fallbackBody.available, false);
@@ -157,7 +216,7 @@ try {
   });
   const inconclusive = await request(owner, '/api/workspace/scans/qa-inconclusive/recommendations', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ regenerate: false, consentVersion: '2026-10-08' }) });
+    body: JSON.stringify({ regenerate: false, consentVersion: CONSENT_VERSION }) });
   assert.equal(inconclusive.status, 200);
   assert.equal((await inconclusive.json()).recommendation.source, 'standard');
   const inconclusiveCache = path.join(photoRoot, owner.uid, 'scans', 'qa-inconclusive', 'recommendations.json');
@@ -168,8 +227,30 @@ try {
   await assert.rejects(fs.access(inconclusiveCache));
   passed('inconclusive imported scans retain standard guidance and scan removal deletes the private advice');
   await assert.rejects(setDoc(doc(owner.db, 'users', owner.uid, 'scans', 'qa-bypass'), { shareForResearch: true }), error => error.code === 'permission-denied');
+  // Retain compatibility coverage for saved detection-only results.
+  await setDoc(doc(owner.db, 'users', owner.uid, 'scans', 'qa-detection-only'), {
+    topClass: 'Not classified', topConfidence: null, detectionCount: 1, statusType: 'monitor',
+    modelVersion: 'detection-only-yolov8m-qa-v1', inferenceMode: 'detection-only', classificationAvailable: false,
+    hasPhotos: false, shareForResearch: false, createdAt: Timestamp.now()
+  });
+  const unclassifiedShare = await request(owner, '/api/workspace/actions/shareScanResult', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scanId: 'qa-detection-only' }) });
+  assert.equal(unclassifiedShare.status, 409);
+  await action(owner, 'deleteScan', { scanId: 'qa-detection-only' });
   await action(owner, 'shareScanResult', { scanId: 'qa-scan' });
-  let resultId = (await adminDb.doc(`users/${owner.uid}/scans/qa-scan`).get()).get('researchResultId');
+  const pairedResearchId = (await adminDb.doc(`users/${owner.uid}/scans/qa-scan`).get()).get('researchResultId');
+  const pairedResearch = (await adminDb.doc(`researchResults/${pairedResearchId}`).get()).data();
+  assert.equal(pairedResearch.topClass, prediction.top_class);
+  assert.equal(pairedResearch.topConfidence, prediction.top_confidence);
+  assert.equal('detections' in pairedResearch, false);
+  await action(owner, 'revokeScanResult', { scanId: 'qa-scan' });
+  // Synthetic historical metadata tests compatibility; this is not current classifier inference.
+  const historicalPrediction = { ...prediction, top_class: 'Crown Rot Disease', top_confidence: 82,
+    status_type: 'risk', status_label: 'Risk', model_version: 'qa-historical-classifier',
+    inference_mode: 'classification', classification_available: true };
+  await saveScan(owner, 'qa-research', historicalPrediction);
+  await action(owner, 'shareScanResult', { scanId: 'qa-research' });
+  let resultId = (await adminDb.doc(`users/${owner.uid}/scans/qa-research`).get()).get('researchResultId');
   const research = (await adminDb.doc(`researchResults/${resultId}`).get()).data();
   assert.deepEqual(Object.keys(research).sort(), ['detectionCount', 'modelVersion', 'month', 'statusType', 'topClass', 'topConfidence', 'userCondition'].sort());
   await assert.rejects(getDocs(collection(other.db, 'researchResults')), error => error.code === 'permission-denied');
@@ -178,24 +259,27 @@ try {
   assert.ok((await getDocs(collection(other.db, 'researchResults'))).docs.some(item => item.id === resultId));
   assert.equal((await request(other, '/api/workspace/photos/qa-scan/annotated.jpg')).status, 404);
   passed('research opt-in is sanitized; researcher access grants no private-photo access');
-  await action(owner, 'revokeScanResult', { scanId: 'qa-scan' });
+  await action(owner, 'revokeScanResult', { scanId: 'qa-research' });
   assert.equal((await adminDb.doc(`researchResults/${resultId}`).get()).exists, false);
   passed('research revocation removes the contributed copy');
-  await action(owner, 'shareScanResult', { scanId: 'qa-scan' });
-  resultId = (await adminDb.doc(`users/${owner.uid}/scans/qa-scan`).get()).get('researchResultId');
-  await action(owner, 'deleteScan', { scanId: 'qa-scan' });
-  assert.equal((await adminDb.doc(`users/${owner.uid}/scans/qa-scan`).get()).exists, false);
+  await action(owner, 'shareScanResult', { scanId: 'qa-research' });
+  resultId = (await adminDb.doc(`users/${owner.uid}/scans/qa-research`).get()).get('researchResultId');
+  await action(owner, 'deleteScan', { scanId: 'qa-research' });
+  assert.equal((await adminDb.doc(`users/${owner.uid}/scans/qa-research`).get()).exists, false);
   assert.equal((await adminDb.doc(`researchResults/${resultId}`).get()).exists, false);
-  await assert.rejects(fs.access(path.join(photoRoot, owner.uid, 'scans', 'qa-scan')));
+  await assert.rejects(fs.access(path.join(photoRoot, owner.uid, 'scans', 'qa-research')));
   passed('scan deletion removes its record, photos, and research copy');
-  await saveScan(other, 'qa-account-scan', prediction);
+  await action(owner, 'deleteScan', { scanId: 'qa-scan' });
+  await assert.rejects(fs.access(path.join(photoRoot, owner.uid, 'scans', 'qa-scan')));
+  assert.equal((await request(owner, '/api/workspace/scans/qa-scan/recommendations')).status, 404);
+  await saveScan(other, 'qa-account-scan', historicalPrediction);
   await setDoc(doc(other.db, 'users', other.uid, 'scans', 'qa-account-advice'), {
     topClass: 'No Detection', topConfidence: null, detectionCount: 0, statusType: 'monitor',
     modelVersion: 'pilot-v1', hasPhotos: false, shareForResearch: false, createdAt: Timestamp.now()
   });
   const accountAdvice = await request(other, '/api/workspace/scans/qa-account-advice/recommendations', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ regenerate: false, consentVersion: '2026-10-08' }) });
+    body: JSON.stringify({ regenerate: false, consentVersion: CONSENT_VERSION }) });
   assert.equal(accountAdvice.status, 200);
   await fs.access(path.join(photoRoot, other.uid, 'scans', 'qa-account-advice', 'recommendations.json'));
   await action(other, 'shareScanResult', { scanId: 'qa-account-scan' });

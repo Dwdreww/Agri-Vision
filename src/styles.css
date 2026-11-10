@@ -1,6 +1,23 @@
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+@theme inline {
+  --font-sans: var(--font-body);
+  --color-canvas: var(--bg);
+  --color-panel: var(--surface);
+  --color-raised: var(--surface-soft);
+  --color-ink: var(--ink);
+  --color-quiet: var(--muted);
+  --color-rule: var(--line);
+  --color-control: var(--control-line);
+  --color-brand: var(--green);
+  --color-brand-hover: var(--green-deep);
+  --color-brand-mark: var(--yellow);
+  --color-action-ink: var(--button-ink);
+  --radius-control: .375rem;
+  --radius-panel: .5rem;
+}
+
 
 :root {
   --font-body: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -440,12 +457,13 @@ svg { flex: none; }
 .photo-composition { position: relative; min-width: 0; }
 .scan-preview { width: 100%; height: 320px; background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; display: grid; place-items: center; overflow: hidden; text-align: center; transform: rotate(-1.2deg); transition: transform .25s, box-shadow .25s; }
 .scan-preview:hover { transform: rotate(0) translateY(-3px); box-shadow: 0 14px 30px #10261c0a; }
-.scan-preview.has-photo { border: 1px solid var(--line); box-shadow: 0 12px 28px #10261c0a; }
+/* Bound the grid track so an image's intrinsic height cannot overflow the preview. */
+.scan-preview.has-photo { grid-template: minmax(0, 1fr) / minmax(0, 1fr); border: 1px solid var(--line); box-shadow: none; transform: none; }
 .scan-preview > div { display: grid; justify-items: center; gap: 11px; padding: 20px; color: var(--muted); }
 .scan-preview > div > svg { color: var(--green); }
 .scan-preview strong { color: var(--ink); font-size: 15px; font-weight: 500; }
 .scan-preview span { font-size: 12px; }
-.scan-preview img { width: 100%; height: 100%; object-fit: contain; background: var(--surface-soft); }
+.scan-preview img { display: block; min-width: 0; min-height: 0; width: 100%; height: 100%; object-fit: contain; background: var(--surface-soft); }
 .photo-caption { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 10px; color: var(--muted); margin-top: 16px; }
 .photo-caption svg { margin-left: 8px; }
 .guided-action { min-width: 0; }
@@ -486,7 +504,15 @@ svg { flex: none; }
 .result-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 9px 0 14px; }
 .result-top h2 { font-size: 30px; font-weight: 500; margin: 0; }
 .result-summary p { color: var(--muted); font-size: 13px; margin: 12px 0; }
-.result-numbers { display: flex; gap: 35px; padding: 18px 0; margin: 18px 0; border-block: 1px solid var(--line); }
+.result-check-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 24px; padding: 18px 0; margin: 18px 0; border-block: 1px solid var(--line); }
+.result-numbers { display: flex; flex: 1 1 180px; gap: 35px; }
+.result-restart { min-height: 44px; flex: 0 0 auto; }
+.result-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.result-delete { min-height: 44px; }
+.result-delete-confirm { display: grid; gap: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--control-line); border-radius: 7px; background: var(--surface); }
+.result-delete-confirm p { margin: 0; }
+.result-delete-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.result-delete-confirm-actions .button { min-height: 44px; }
 .result-numbers > div { display: grid; gap: 5px; }
 .result-numbers strong { font-size: 26px; font-weight: 500; }
 .result-numbers span { color: var(--muted); font-size: 11px; }
@@ -668,6 +694,10 @@ svg { flex: none; }
   .scan-card-top { gap: 12px; }
   .form-two, .help-reference-grid { grid-template-columns: minmax(0,1fr); }
   .scan-guide-link { font-size: 11px; }
+  .result-check-actions .result-numbers { flex-basis: 100%; }
+  .result-restart { width: 100%; }
+  .result-options { width: 100%; }
+  .result-delete { width: 100%; }
   .report-actions .button { width: 100%; }
   .photo-pair, .detail-grid { grid-template-columns: minmax(0,1fr); }
 }

@@ -3,7 +3,7 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
-const { MODEL, CONSENT_VERSION, SCHEMA_VERSION, failure, prepareScan, standardRecommendation, requestGemini } = require("./recommendations");
+const { PUBLIC_AI_ERROR_CODES, PROVIDER_TIMEOUT_MS, MODEL, CONSENT_VERSION, SCHEMA_VERSION, failure, prepareScan, standardRecommendation, validateContent, requestGemini } = require("./recommendations");
 
 async function readJson(file, { optional = true, cache = false } = {}) {
   try {
@@ -12,7 +12,7 @@ async function readJson(file, { optional = true, cache = false } = {}) {
     return JSON.parse(await fs.readFile(file, "utf8"));
   } catch (error) {
     if ((optional && error.code === "ENOENT") || cache) return null;
-    throw failure("Recommendation storage is temporarily unavailable.", 503);
+    throw failure("Recommendation storage is temporarily unavailable.", 503, undefined, "AI_STORAGE_UNAVAILABLE");
   }
 }
 
@@ -41,6 +41,8 @@ function validCachedRecommendation(value) {
     && list(value.concerns) && list(value.tips)
     && Array.isArray(value.actions) && value.actions.length > 0 && value.actions.length <= 4
     && value.actions.every(action => action && text(action.text) && text(action.reason))
+    && (value.sections === undefined || (value.source === "gemini" && Array.isArray(value.sections)
+      && value.sections.length === 15 && value.sections.every(section => text(section?.title) && text(section?.text))))
     && typeof value.generatedAt === "string" && Number.isFinite(Date.parse(value.generatedAt))
     && (value.source === "standard" ? value.provider === null && value.model === null
       : value.provider === "Google Gemini" && value.model === MODEL);
@@ -71,7 +73,7 @@ function createStore({ scanDirectory, rootDirectory,
       const [owner, global] = await Promise.all([readJson(ownerLedger(uid)), readJson(globalLedger)]);
       for (const ledger of [owner, global]) {
         if (ledger && (!/^\d{4}-\d{2}-\d{2}$/.test(ledger.day || "") || !Number.isInteger(ledger.count) || ledger.count < 0 || !Number.isFinite(ledger.lastAttemptAt))) {
-          throw failure("Recommendation limits are temporarily unavailable.", 503);
+          throw failure("Recommendation limits are temporarily unavailable.", 503, undefined, "AI_STORAGE_UNAVAILABLE");
         }
       }
       const cooldown = owner ? cooldownMs - (now - owner.lastAttemptAt) : 0;
@@ -90,8 +92,21 @@ function createStore({ scanDirectory, rootDirectory,
   };
 }
 
-function createRecommendationService({ store, getScan, requireActiveAccount, withAccountLock,
-  apiKey = process.env.GEMINI_API_KEY || "", provider = requestGemini, now = () => new Date(), fetchImpl, timeoutMs = 20000 }) {
+async function readScanForRecommendation(db, uid, id) {
+  const record = await db.doc(`users/${uid}/scans/${id}`).get();
+  if (!record.exists) return null;
+  const scan = record.data();
+  // New scans store the variety at capture. Older records can use the recorded
+  // growing-area variety when their original scan did not store a snapshot.
+  if (!Object.hasOwn(scan, "cultivar") && typeof scan.plotId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(scan.plotId)) {
+    const plot = await db.doc(`users/${uid}/plots/${scan.plotId}`).get();
+    return { ...scan, cultivar: plot.data()?.variety };
+  }
+  return scan;
+}
+
+function createRecommendationService({ store, getScan, loadPhoto, hasPhotoConsent, requireActiveAccount, withAccountLock,
+  apiKey = process.env.GEMINI_API_KEY || "", provider = requestGemini, now = () => new Date(), fetchImpl, timeoutMs = PROVIDER_TIMEOUT_MS }) {
   const available = Boolean(apiKey.trim());
   const inFlight = new Map();
   let providerBusy = false;
@@ -101,13 +116,29 @@ function createRecommendationService({ store, getScan, requireActiveAccount, wit
     const scan = await getScan(uid, id);
     if (!scan) throw failure("Scan not found.", 404);
     if (scan.deletionInProgress === true) throw failure("Scan deletion is in progress.", 409);
-    return prepareScan(scan);
+    return scan;
+  }
+
+  async function readCached(uid, id, prepared) {
+    const current = await store.read(uid, id, prepared.fingerprint);
+    if (current) return current;
+    for (const fingerprint of prepared.previousFingerprints || []) {
+      const previous = await store.read(uid, id, fingerprint);
+      if (!previous) continue;
+      if (previous.source === "standard") return standardRecommendation(prepared, new Date(previous.generatedAt));
+      try {
+        const { analysis, concerns, actions, tips } = previous;
+        validateContent({ analysis, concerns, actions, tips }, prepared);
+        return previous;
+      } catch { /* Old advice must satisfy today's stricter content rules. */ }
+    }
+    return null;
   }
 
   async function read(uid, id) {
     return withAccountLock(uid, async () => {
-      const prepared = await load(uid, id);
-      return { available, recommendation: await store.read(uid, id, prepared.fingerprint) };
+      const prepared = prepareScan(await load(uid, id));
+      return { available, recommendation: await readCached(uid, id, prepared) || standardRecommendation(prepared, now()) };
     });
   }
 
@@ -123,16 +154,30 @@ function createRecommendationService({ store, getScan, requireActiveAccount, wit
     if (inFlight.has(key)) return inFlight.get(key);
     const operation = withAccountLock(uid, async () => {
       checkCancelled();
-      const prepared = await load(uid, id);
-      const cached = await store.read(uid, id, prepared.fingerprint);
+      const scan = await load(uid, id);
+      const prepared = prepareScan(scan);
+      const cached = await readCached(uid, id, prepared);
       checkCancelled();
       if (cached && !data.regenerate) return { available, recommendation: cached };
       const standard = standardRecommendation(prepared, now());
       if (prepared.inconclusive) {
-        await store.write(uid, id, prepared.fingerprint, standard);
+        try { await store.write(uid, id, prepared.fingerprint, standard); }
+        catch {
+          const error = failure("The recommendation could not be saved. Your scan is still saved.", 503, undefined, "AI_STORAGE_UNAVAILABLE");
+          error.result = { available, recommendation: cached || standard };
+          throw error;
+        }
         return { available, recommendation: standard };
       }
       if (!available) return { available, recommendation: cached || standard };
+      const fallback = { available, recommendation: cached || standard };
+      async function checkPhotoConsent() {
+        if (!hasPhotoConsent || await hasPhotoConsent(uid)) return;
+        const error = failure("Enable photo-based recommendations before sending this scan to Gemini.", 403, undefined, "AI_PHOTO_CONSENT_REQUIRED");
+        error.result = fallback;
+        throw error;
+      }
+      await checkPhotoConsent();
       if (providerBusy) {
         const busy = failure("AI recommendations are busy. Please try again shortly.", 429, 20);
         busy.result = { available, recommendation: cached || standard };
@@ -141,28 +186,46 @@ function createRecommendationService({ store, getScan, requireActiveAccount, wit
       providerBusy = true;
       try {
         checkCancelled();
-        await store.reserve(uid, now());
+        const photo = await loadPhoto(uid, id, scan).catch(() => null);
+        if (!Buffer.isBuffer(photo) || photo.length < 3 || photo.length > 10 * 1024 * 1024
+            || photo[0] !== 0xff || photo[1] !== 0xd8 || photo[2] !== 0xff) {
+          const error = failure("The saved scan photo is unavailable. You can still use the standard guidance.", 503, undefined, "AI_PHOTO_UNAVAILABLE");
+          error.result = fallback;
+          throw error;
+        }
+        checkCancelled();
+        await checkPhotoConsent();
+        try { await store.reserve(uid, now()); }
+        catch (error) {
+          if (error.status === 429) throw error;
+          throw failure("Recommendation limits could not be saved. Please try again later.", 503, undefined, "AI_STORAGE_UNAVAILABLE");
+        }
         checkCancelled();
         let recommendation;
         try {
-          recommendation = await provider(prepared, { apiKey, fetchImpl, timeoutMs, now, signal });
+          recommendation = await provider(prepared, { apiKey, photo, fetchImpl, timeoutMs, now, signal });
         } catch (error) {
           if (error.status === 499) throw error;
           const status = error.status === 429 ? 429 : 503;
           const publicError = failure([429, 503].includes(error.status) ? error.message : "AI recommendations are temporarily unavailable. Please try again later.", status, error.retryAfter);
+          if (PUBLIC_AI_ERROR_CODES.includes(error.code)) publicError.code = error.code;
           publicError.result = { available, recommendation: cached || standard };
           throw publicError;
         }
         // Account locks cover local deletion. Recheck after the network call as
         // well, so an external account deletion or record edit cannot recreate
         // a deleted directory or attach advice to changed model results.
-        const current = await load(uid, id);
+        const current = prepareScan(await load(uid, id));
         checkCancelled();
         if (current.fingerprint !== prepared.fingerprint) throw failure("This scan changed while recommendations were being generated. Please try again.", 409);
-        await store.write(uid, id, prepared.fingerprint, recommendation);
+        try { await store.write(uid, id, prepared.fingerprint, recommendation); }
+        catch { throw failure("The recommendation could not be saved. Your scan is still saved.", 503, undefined, "AI_STORAGE_UNAVAILABLE"); }
         return { available, recommendation };
       } catch (error) {
-        if (error.status === 429 && !error.result) error.result = { available, recommendation: cached || standard };
+        if (["EACCES", "EPERM", "ENOSPC", "EIO", "EROFS"].includes(error.code)) {
+          error = failure("The recommendation could not be saved. Your scan is still saved.", 503, undefined, "AI_STORAGE_UNAVAILABLE");
+        }
+        if ((error.status === 429 || error.code === "AI_STORAGE_UNAVAILABLE") && !error.result) error.result = { available, recommendation: cached || standard };
         throw error;
       } finally { providerBusy = false; }
     });
@@ -173,4 +236,4 @@ function createRecommendationService({ store, getScan, requireActiveAccount, wit
   return { available, read, generate };
 }
 
-module.exports = { createStore, createRecommendationService, atomicJson };
+module.exports = { createStore, createRecommendationService, atomicJson, validCachedRecommendation, readScanForRecommendation };

@@ -7,13 +7,15 @@ const os = require("node:os");
 const { test } = require("node:test");
 const { createApp } = require("../local-server");
 const { createStore } = require("../local-recommendations");
-const { MODEL } = require("../recommendations");
+const { MODEL, CONSENT_VERSION } = require("../recommendations");
 
-const scan = { topClass: "Crown Rot Disease", topConfidence: 91, detectionCount: 1, statusType: "risk", modelVersion: "pilot-v1", recommendation: "Existing scanner next step." };
-const consent = { regenerate: false, consentVersion: "2026-10-08" };
+const scan = { topClass: "Crown Rot Disease", topConfidence: 91, detectionCount: 1, statusType: "risk", modelVersion: "pilot-v1", recommendation: "Existing scanner next step.", storageProvider: "local" };
+const consent = { regenerate: false, consentVersion: CONSENT_VERSION };
 async function endpointFixture(t, { apiKey = "test-key", provider, now } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "agri-api-test-"));
   const scanDirectory = (uid, id) => path.join(directory, uid, "scans", ...(id ? [id] : []));
+  await fs.mkdir(scanDirectory("alice", "one"), { recursive: true });
+  await fs.writeFile(path.join(scanDirectory("alice", "one"), "prepared.jpg"), Buffer.from([0xff, 0xd8, 0xff]));
   const records = new Map([
     ["users/alice", {}], ["users/bob", {}], ["users/locked", { deletionInProgress: true }],
     ["users/alice/scans/one", { ...scan }], ["users/bob/scans/private", { ...scan, topClass: "No Disease", statusType: "healthy" }],
@@ -66,7 +68,10 @@ test("HTTP recommendation routes authenticate, isolate accounts and never genera
   assert.equal((await f.request("scans/deleting/recommendations")).status, 409);
   const read = await f.request("scans/one/recommendations");
   assert.equal(read.headers.get("cache-control"), "no-store");
-  assert.deepEqual(await read.json(), { available: true, recommendation: null });
+  const guidance = await read.json();
+  assert.equal(guidance.available, true);
+  assert.equal(guidance.recommendation.source, "standard");
+  assert.ok(guidance.recommendation.actions.length >= 2);
   assert.equal(f.calls(), 0);
   assert.equal((await f.request("scans/one/recommendations", { method: "POST", body: { ...consent, consentVersion: "old" } })).status, 400);
   const generated = await f.request("scans/one/recommendations", { method: "POST", body: consent });
@@ -109,4 +114,29 @@ test("HTTP provider rate limits retain safe guidance and a retry header", async 
   assert.equal(body.recommendation.source, "standard");
   assert.ok(!JSON.stringify(body).includes("test-key"));
   assert.equal(f.calls(), 1);
+});
+
+
+test("HTTP timeout preserves its safe reason through the service and keeps fallback truthful", async t => {
+  const f = await endpointFixture(t, { provider: async () => {
+    throw Object.assign(new Error("AI recommendations took too long. Please try again later."), { status: 503, code: "AI_TIMEOUT" });
+  } });
+  const response = await f.request("scans/one/recommendations", { method: "POST", body: consent });
+  assert.equal(response.status, 503);
+  const body = await response.json();
+  assert.equal(body.errorCode, "AI_TIMEOUT");
+  assert.equal(body.recommendation.source, "standard");
+  assert.equal((await (await f.request("scans/one/recommendations")).json()).recommendation.source, "standard");
+});
+
+
+test("HTTP rejected advice exposes only a known reason and retains standard guidance", async t => {
+  const f = await endpointFixture(t, { provider: async () => {
+    throw Object.assign(new Error("AI recommendations exceeded the scanner's supported scope."), { status: 503, code: "AI_RESPONSE_REJECTED" });
+  } });
+  const response = await f.request("scans/one/recommendations", { method: "POST", body: consent });
+  const body = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(body.errorCode, "AI_RESPONSE_REJECTED");
+  assert.equal(body.recommendation.source, "standard");
 });

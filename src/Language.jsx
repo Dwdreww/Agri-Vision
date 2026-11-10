@@ -1,6 +1,7 @@
 import { useEffect, useId, useSyncExternalStore } from 'react';
 import { Languages } from 'lucide-react';
 import { getLanguage, languages, setLanguage, subscribeLanguage, t } from './i18n.js';
+import { workspaceMode } from './firebase.js';
 
 export function useLanguage() {
   const language = useSyncExternalStore(subscribeLanguage, getLanguage, () => 'en');
@@ -21,5 +22,5 @@ export function LanguagePicker() {
 
 export function LanguageSettings() {
   const { t, language } = useLanguage();
-  return <section className="panel settings-card"><h2>{t('Language')}</h2><p>{t('Choose the language for buttons, instructions, and help. Your farm names and notes stay as you wrote them.')}</p><LanguagePicker /><p className="quiet-caption">{t('English is the default. Your choice is saved in this browser.')}</p>{language === 'fil' && <p className="quiet-caption">{t('Detailed model text and AI advice may be in English.')}</p>}</section>;
+  return <section className="panel settings-card"><h2>{t('Language')}</h2><p>{t('Choose the language for buttons, instructions, and help. Your farm names and notes stay as you wrote them.')}</p><LanguagePicker /><p className="quiet-caption">{t(workspaceMode==='cloud'?'English is the default. Your choice is saved in your private account.':'English is the default. Your choice is saved in this browser.')}</p>{language === 'fil' && <p className="quiet-caption">{t('Detailed model text and recommendations may be in English.')}</p>}</section>;
 }

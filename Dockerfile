@@ -17,8 +17,10 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
     && pip install -r requirements.txt
 
-COPY app.py preprocessing.py yolov8.pt efficientnetB0.pth ./
-RUN python -c "from pathlib import Path; assert all(Path(p).stat().st_size > 1024 for p in ('yolov8.pt', 'efficientnetB0.pth')), 'Fetch Git LFS model weights before building the backend image'"
+COPY app.py scanner_models.py scanner_auth.py ./
+COPY models/bestv4.pt models/efficientnet_pineapple_bestv2.pth models/efficientnet_metrics.json ./models/
+RUN python -c "from scanner_models import DETECTOR_ARTIFACT, DETECTOR_SHA256, file_sha256; assert file_sha256('models/' + DETECTOR_ARTIFACT) == DETECTOR_SHA256, 'Supply the reviewed YOLOv8m weights before building'"
+RUN python -c "from scanner_models import CLASSIFIER_ARTIFACT, CLASSIFIER_SHA256, file_sha256, load_classifier_labels; assert file_sha256('models/' + CLASSIFIER_ARTIFACT) == CLASSIFIER_SHA256, 'Supply the reviewed EfficientNet weights before building'; load_classifier_labels('models/efficientnet_metrics.json')"
 
 EXPOSE 7860
 

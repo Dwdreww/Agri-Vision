@@ -8,6 +8,7 @@ export const createPlot = (_uid, fields) => browserStore.insert('plots', { farmI
 export const updateFarm = (_uid, id, fields) => browserStore.update('farms', id, { name: fields.name.trim(), notes: fields.notes?.trim() || '' });
 export const updatePlot = (_uid, id, fields) => browserStore.update('plots', id, { name: fields.name.trim(), variety: fields.variety?.trim() || '', plantedAt: fields.plantedAt || '', notes: fields.notes?.trim() || '' });
 export const archiveFarm = (_uid, id) => browserStore.update('farms', id, { archivedAt: new Date().toISOString() });
+export const restoreFarm = (_uid, id) => browserStore.update('farms', id, { archivedAt: null });
 export const archivePlot = (_uid, id) => browserStore.update('plots', id, { archivedAt: new Date().toISOString() });
 export const createObservation = (_uid, fields) => browserStore.insert('observations', { plotId: fields.plotId, observedAt: fields.observedAt, condition: fields.condition, note: fields.note.trim() });
 export const createTask = (_uid, fields) => browserStore.insert('tasks', { plotId: fields.plotId, title: fields.title.trim(), dueDate: fields.dueDate, note: fields.note?.trim() || '', completedAt: null });
@@ -25,6 +26,11 @@ export function saveScan(_uid, id, plotId, farmId, preparedFile, prediction, use
     preprocessingSteps: prediction.preprocessing_steps || [], preprocessingSummary: prediction.preprocessing_summary || {},
     message: prediction.message || '', recommendation: prediction.recommendation || '',
     modelVersion: prediction.model_version || 'unknown', imageWidth: Number(prediction.image_width) || 0,
+    inferenceMode: prediction.inference_mode || 'photo-only',
+    scannerProfile: prediction.scanner_profile || '',
+    classificationScope: prediction.classification_scope || '',
+    classificationAvailable: prediction.classification_available !== false && !prediction.is_photo_only,
+    detectorTopConfidence: numericConfidence(prediction.detector_top_confidence),
     imageHeight: Number(prediction.image_height) || 0, userCondition: userCondition || null,
     importedFromLegacy: false, isPhotoOnly: Boolean(prediction.is_photo_only)
   }, preparedFile, resultBlob(prediction.annotated_image));

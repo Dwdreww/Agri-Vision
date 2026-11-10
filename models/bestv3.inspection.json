@@ -1,0 +1,56 @@
+{
+  "artifact": "bestv3.pt",
+  "source_filename": "bestv3.pt",
+  "sha256": "28a5c00ab63b92c052f5e4701cdc0f79f857f59ca6c7f5e81e78e78f41b544c5",
+  "inspection_date": "2026-11-04",
+  "active": false,
+  "model_family": "YOLOv8m",
+  "task": "detect",
+  "output_count": 1,
+  "class_names": {
+    "0": "item"
+  },
+  "parameter_count": 25856899,
+  "input_size": 640,
+  "checkpoint_metadata": {
+    "ultralytics_version": "8.4.190",
+    "configured_training_epochs": 60,
+    "epoch": -1,
+    "optimizer_included": false
+  },
+  "safe_load": {
+    "weights_only": true,
+    "map_location": "cpu",
+    "fixed_reviewed_safe_globals": true,
+    "all_weights_finite": true
+  },
+  "verification": {
+    "strict_installed_yolov8m_one_class_state_load": true,
+    "finite_cpu_forward": true,
+    "cpu_forward_shape": [
+      1,
+      5,
+      8400
+    ],
+    "installed_ultralytics": "8.4.50",
+    "installed_torch": "2.12.0"
+  },
+  "class_target_note": "Checkpoint class 'item' is preserved as detector metadata; it does not assign a condition.",
+  "active_pipeline": {
+    "profile": "yolov8m-efficientnet-b0-regions",
+    "model_version": "yolov8m-28a5c00ab63b-effnetb0-43adddf64b22-roi-v2",
+    "classifier": "efficientnet_pineapple_best.pth",
+    "classifier_input": "unannotated-yolo-bounding-box-crops",
+    "image_versions": [
+      "original",
+      "yolo_crops"
+    ],
+    "yolo_confidence_threshold": 0.65
+  },
+  "superseded_detector": {
+    "artifact": "best.pt",
+    "sha256": "273092bf7850ed863cfe31d32c380326e852b162bfc3f347dee2c760f641018c",
+    "active": false,
+    "automatic_fallback": false
+  }
+}

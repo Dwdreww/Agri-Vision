@@ -1,0 +1,75 @@
+{
+  "testedAt": "2026-10-22T13:28:47.234Z",
+  "model": "gemini-3.5-flash-lite",
+  "promptVersion": "pineapple-care-v3",
+  "syntheticDataOnly": true,
+  "privateRecordsUsed": false,
+  "automaticRetries": false,
+  "cases": [
+    {
+      "condition": "Crown Rot Disease",
+      "passed": false,
+      "httpStatus": null,
+      "elapsedMs": 10519,
+      "code": "AI_PROVIDER_UNAVAILABLE",
+      "message": "AI recommendations are temporarily unavailable. Please try again later."
+    },
+    {
+      "condition": "Fruit Fasciation Disorder",
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMs": 28193,
+      "source": "gemini",
+      "actionCount": 2
+    },
+    {
+      "condition": "Fruit Rot Disease",
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMs": 22051,
+      "source": "gemini",
+      "actionCount": 3
+    },
+    {
+      "condition": "Mealybug Wilt Disease",
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMs": 21913,
+      "source": "gemini",
+      "actionCount": 3
+    },
+    {
+      "condition": "Multiple Crown Disorder",
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMs": 23219,
+      "source": "gemini",
+      "actionCount": 2
+    },
+    {
+      "condition": "No Disease",
+      "passed": false,
+      "httpStatus": 503,
+      "elapsedMs": 811,
+      "code": "AI_PROVIDER_UNAVAILABLE",
+      "message": "AI recommendations are temporarily unavailable. Please try again later."
+    },
+    {
+      "condition": "Root Rot Disease",
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMs": 34619,
+      "source": "gemini",
+      "actionCount": 3
+    },
+    {
+      "condition": "Mixed: No Disease + Crown Rot Disease",
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMs": 23138,
+      "source": "gemini",
+      "actionCount": 2
+    }
+  ],
+  "passed": false
+}

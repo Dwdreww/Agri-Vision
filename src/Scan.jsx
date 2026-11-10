@@ -1,59 +1,59 @@
 import { t } from './i18n.js';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Leaf, Camera, Check, CircleCheck, CloudOff, ImagePlus, LoaderCircle, Plus, RefreshCw, ScanLine, ShieldCheck, UploadCloud, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CircleCheck, CloudOff, ImagePlus, LoaderCircle, Plus, RefreshCw, ScanLine, ShieldCheck, Trash2 } from 'lucide-react';
 import { doc } from 'firebase/firestore';
-import { cleanupUnsavedScan, saveScan, shareScan, userCollection } from './data';
+import { cleanupUnsavedScan, deleteScan, saveScan, shareScan, userCollection } from './data';
 import { prepareImage, readableError } from './utils';
-import { ConditionBadge, ConfidenceHelp, PredictionDetails, StatusPill } from './components';
+import { ScanNextStep, ScanResultIndicators } from './components';
 import RecommendationCard, { RecommendationPreference } from './Recommendations.jsx';
 import { formatConfidence } from './recommendation-utils.js';
 import { useWorkspaceServices } from './services';
 import { newBrowserId } from './browser-store.js';
 import { PageHelp } from './Guidance.jsx';
+import { scanAssessment } from './scan-assessment.js';
+import { isDetectionOnly } from './detection-regions.js';
 
-export default function ScanView({ uid, user, plots, farms, initialPlotId, onNotify, onNavigate, online }) {
+export default function ScanView({ uid, user, plots, farms, initialPlotId, onNotify, onNavigate, online, initialFile = null, onInitialFileConsumed }) {
   const services = useWorkspaceServices();
   const [plotId, setPlotId] = useState(initialPlotId || (services.browser ? plots.find(plot => !plot.archivedAt)?.id || '' : ''));
   const [preparedFile, setPreparedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
-  const [cameraOpen, setCameraOpen] = useState(false);
   const [prediction, setPrediction] = useState(null);
   const [stage, setStage] = useState('idle');
   const [flowStep, setFlowStep] = useState(0);
   const [error, setError] = useState('');
   const [savedId, setSavedId] = useState('');
   const [pendingId, setPendingId] = useState('');
+  const [removing, setRemoving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareWanted, setShareWanted] = useState(false);
   const [userCondition, setUserCondition] = useState('');
+  const [growthStage, setGrowthStage] = useState('');
   const fileInput = useRef(null);
-  const video = useRef(null);
-  const cameraStream = useRef(null);
-  const cameraTrigger = useRef(null);
-  const captureButton = useRef(null);
+  const receivedInitialFile = useRef(null);
   const resultHeading = useRef(null);
   const plotSelect = useRef(null);
   const stepHeading = useRef(null);
+  const deleteTrigger = useRef(null);
+  const cancelDelete = useRef(null);
   const previousStep = useRef(0);
   const activePlots = plots.filter(plot => !plot.archivedAt && farms.some(farm => farm.id === plot.farmId && !farm.archivedAt));
 
+  useEffect(() => {
+    if (!initialFile || receivedInitialFile.current === initialFile) return;
+    receivedInitialFile.current = initialFile;
+    receiveImage(initialFile);
+    onInitialFileConsumed?.();
+  }, [initialFile]);
+
   useEffect(() => { if (initialPlotId) setPlotId(initialPlotId); }, [initialPlotId]);
+  useEffect(() => { if (confirmDelete) cancelDelete.current?.focus(); }, [confirmDelete]);
   useEffect(() => {
     if (!preparedFile) { setPreviewUrl(''); return undefined; }
     const url = URL.createObjectURL(preparedFile);
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [preparedFile]);
-  useEffect(() => {
-    if (!cameraOpen) return undefined;
-    if (video.current && cameraStream.current) video.current.srcObject = cameraStream.current;
-    captureButton.current?.focus();
-    const escape = event => { if (event.key === 'Escape') { event.preventDefault(); stopCamera(); } };
-    document.addEventListener('keydown', escape);
-    return () => document.removeEventListener('keydown', escape);
-  }, [cameraOpen]);
-  useEffect(() => () => {
-    cameraStream.current?.getTracks().forEach(track => track.stop());
-  }, []);
 
   useEffect(() => {
     if (previousStep.current === flowStep) return;
@@ -63,20 +63,19 @@ export default function ScanView({ uid, user, plots, farms, initialPlotId, onNot
     if (window.matchMedia('(max-width: 760px)').matches) heading?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }, [flowStep]);
 
-  function stopCamera() {
-    const wasOpen = Boolean(cameraStream.current);
-    cameraStream.current?.getTracks().forEach(track => track.stop());
-    cameraStream.current = null;
-    setCameraOpen(false);
-    if (wasOpen) cameraTrigger.current?.focus();
-  }
   async function receiveImage(file) {
     if (!file) return;
     if (stage === 'unsaved' && pendingId) {
       try { await cleanupUnsavedScan(uid, pendingId); }
       catch { onNotify('The previous unsaved upload could not be cleared yet. It will be removed with your account.', 'error'); }
     }
-    stopCamera();
+    if (flowStep === 2) {
+      setFlowStep(0);
+      setShareWanted(false);
+      setConfirmDelete(false);
+      setUserCondition('');
+      setGrowthStage('');
+    }
     setStage('preparing');
     setPreparedFile(null);
     setError('');
@@ -92,42 +91,19 @@ export default function ScanView({ uid, user, plots, farms, initialPlotId, onNot
       setError(readableError(error));
     }
   }
-  async function openCamera() {
-    setError('');
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Camera access is unavailable here. You can upload a photo instead.');
-      return;
-    }
-    try {
-      cameraStream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-      setCameraOpen(true);
-    } catch {
-      setError('Camera access was denied or is unavailable. You can upload a photo instead.');
-    }
-  }
-  function capture() {
-    const current = video.current;
-    if (!current?.videoWidth) { setError('The camera is still starting. Try again in a moment.'); return; }
-    const canvas = document.createElement('canvas');
-    canvas.width = current.videoWidth;
-    canvas.height = current.videoHeight;
-    canvas.getContext('2d').drawImage(current, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(blob => {
-      if (!blob) { setError('The photo could not be captured.'); return; }
-      receiveImage(new File([blob], 'camera.jpg', { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.82);
-  }
   async function persistResult(result, scanId) {
     const plot = activePlots.find(item => item.id === plotId);
     if (!plot) { setStage('unsaved'); setError("Choose an active growing area before saving this result."); return; }
     setStage('saving');
     setError('');
     try {
-      await saveScan(uid, scanId, plot.id, plot.farmId, preparedFile, result, userCondition);
+      await saveScan(uid, scanId, plot.id, plot.farmId, preparedFile, result, userCondition, {
+        cultivar: plot.variety, growthStage
+      });
       setSavedId(scanId);
       setStage('saved');
       if (shareWanted && formatConfidence(result.top_confidence) === 'Unavailable') {
-        onNotify("Check saved. Research sharing requires a valid model confidence value.", 'error');
+        onNotify("Check saved. This result is unavailable for research sharing.", 'error');
       } else if (shareWanted) {
         try { await shareScan(scanId); onNotify("Check saved and shared for research."); }
         catch (error) { onNotify(t('Check saved. Research sharing could not be completed: {reason}', { reason: t(readableError(error)) }), 'error'); }
@@ -139,8 +115,8 @@ export default function ScanView({ uid, user, plots, farms, initialPlotId, onNot
   }
   async function analyze() {
     if (!online) { setError('Connect to the internet before scanning.'); return; }
-    if (!services.scanner || !services.photos) { setError('Scanning and photo saving are temporarily unavailable.'); return; }
-    if (!plotId || !preparedFile || stage === 'analyzing' || stage === 'saving') return;
+    if (!services.scanner || (!services.photos && !services.demo)) { setError('Scanning and photo saving are temporarily unavailable.'); return; }
+    if ((!plotId && !services.demo) || !preparedFile || stage === 'analyzing' || stage === 'saving') return;
     setStage('analyzing');
     setError('');
     setPrediction(null);
@@ -158,6 +134,7 @@ export default function ScanView({ uid, user, plots, farms, initialPlotId, onNot
       if (!response.ok || !result.success) throw new Error(result.error || "The check could not be completed.");
       setPrediction(result);
       setFlowStep(2);
+      if (services.demo) { setStage('demo'); return; }
       const id = doc(userCollection(uid, 'scans')).id;
       setPendingId(id);
       await persistResult(result, id);
@@ -183,7 +160,6 @@ export default function ScanView({ uid, user, plots, farms, initialPlotId, onNot
       try { await cleanupUnsavedScan(uid, pendingId); }
       catch { onNotify('The unsaved upload could not be cleared yet. It will be removed with your account.', 'error'); }
     }
-    stopCamera();
     setPreparedFile(null);
     setPrediction(null);
     setStage('idle');
@@ -192,29 +168,37 @@ export default function ScanView({ uid, user, plots, farms, initialPlotId, onNot
     setSavedId('');
     setPendingId('');
     setShareWanted(false);
+    setConfirmDelete(false);
     setUserCondition('');
+    setGrowthStage('');
     if (fileInput.current) fileInput.current.value = '';
     requestAnimationFrame(() => {
       plotSelect.current?.focus({ preventScroll: true });
       window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
     });
   }
+  async function removeResult() {
+    if (!confirmDelete || removing || stage !== 'saved' || !savedId) return;
+    if (!services.browser && !online) {
+      setError('Connect to the internet to delete this check.');
+      return;
+    }
+    setRemoving(true);
+    setError('');
+    try {
+      await deleteScan(savedId);
+      await reset();
+      onNotify('Check deleted.');
+    } catch (error) {
+      setError(t('This check could not be removed: {reason}', { reason: t(readableError(error)) }));
+    } finally { setRemoving(false); }
+  }
   const selectedPlot = activePlots.find(item => item.id === plotId);
-  const displayResult = prediction ? {
-    ...prediction,
-    modelVersion: prediction.model_version,
-    detectionCount: prediction.detection_count,
-    preprocessingSteps: prediction.preprocessing_steps,
-    preprocessingSummary: prediction.preprocessing_summary,
-    topClass: prediction.top_class,
-    topConfidence: prediction.top_confidence,
-    isPhotoOnly: Boolean(prediction.is_photo_only),
-    userCondition
-  } : null;
-  const resultImage = prediction?.annotated_image?.startsWith('data:image/jpeg;base64,') ? prediction.annotated_image : '';
+  const detectionOnly = isDetectionOnly(prediction);
+  const assessment = scanAssessment(prediction?.top_class, Boolean(prediction?.is_photo_only), detectionOnly);
 
-  const processing = ['preparing', 'analyzing', 'saving'].includes(stage);
-  const stageText = { preparing: 'Preparing your photo for scanning…', analyzing: 'Analyzing the photo with the pineapple model…', saving: services.browser ? 'Saving your photo in this browser…' : 'Saving your result and private photos…', saved: 'Your check is saved. Find it again in History.', unsaved: 'Your result is ready but has not been saved.' }[stage] || '';
+  const processing = removing || ['preparing', 'analyzing', 'saving'].includes(stage);
+  const stageText = { preparing: 'Preparing your photo for scanning…', analyzing: services.classification ? 'Analyzing the photo with the pineapple model…' : 'Finding candidate regions with YOLO…', saving: services.browser ? 'Saving your photo in this browser…' : 'Saving your result and private photos…', saved: 'Your photo is saved. Find it again in Records.', unsaved: 'Your result is ready but has not been saved.', demo: 'Demo result ready. It stays on this page until you start another check.' }[stage] || '';
 
   function receiveTransferredPhoto(event, transfer) {
     const file = transfer?.files?.[0];
@@ -225,70 +209,119 @@ export default function ScanView({ uid, user, plots, farms, initialPlotId, onNot
   }
 
   const steps = [
-    ['Add photo', 'Check your photo'],
-    [services.browser ? 'Save photo' : 'Check photo', services.browser ? 'Keep a photo record' : 'Look for a condition'],
-    ['Review & care', 'Understand the findings']
+    [0, 'Photo & details'],
+    [2, services.browser ? 'Saved photo' : 'Result']
   ];
 
   return <div className="view scan-view guided-scan">
-    <div className="guided-hero text-center"><span className="eyebrow">{t("ONE PHOTO. A CLEARER NEXT STEP.")}</span><h1>{t("Check a pineapple")}</h1><p>{t("Choose a growing area, add a clear photo, and review the next step. Each check is for the photographed sample.")}</p></div>
-    <PageHelp><p>{t("Choose where the pineapple is growing so you can find this check later. Take a clear photo in daylight and keep the affected area in focus.")}</p><p>{t("A result suggests what the photo may show. Check the plant in person too. If analysis is unavailable, guest users can save the photo as Not analyzed.")}</p></PageHelp>
+    <div className="journal-capture-heading"><button className="text-link" type="button" onClick={()=>onNavigate(services.demo ? 'dashboard' : 'plot',plotId)}><ArrowLeft size={16}/>{t("Back to records")}</button><h1>{t(services.browser ? 'Add photo' : 'Scan pineapple')}</h1><p>{t(services.browser ? 'Keep a pineapple photo with your field records.' : 'Choose a pineapple photo and check it for a possible condition.')}</p></div>
+    {services.demo && <div className="callout subtle"><ShieldCheck size={19} /><span>{t('Demo mode sends your photo to the model server. Photos and results are not saved; recommendations are unavailable.')}</span></div>}
     <div className="ribbon-wrap"><div className="ribbon-track" aria-hidden="true"><span style={{ width: `${flowStep * 50}%` }} /></div>
     <ol className="guided-ribbon" aria-label={t("Scanning steps")}>
-      {steps.map(([label, description], index) => <li key={label} className={flowStep === index ? 'is-current' : flowStep > index ? 'is-complete' : ''} aria-current={flowStep === index ? 'step' : undefined}><button type="button" className="ribbon-step" aria-label={t("Step {value0}: {value1}", { value0: index + 1, value1: t(label) })} disabled={processing || (prediction ? index !== 2 : index === 2 || (index === 1 && (!preparedFile || !plotId)))} onClick={() => { stopCamera(); setFlowStep(index); }}><span className="ribbon-number" aria-hidden="true">{flowStep > index ? <Check size={18} /> : `0${index + 1}`}</span><strong>{t(label)}</strong><small>{t(description)}</small></button></li>)}
+      {steps.map(([step,label], index) => <li key={step} className={flowStep === step ? 'is-current' : flowStep > step ? 'is-complete' : ''} aria-current={flowStep === step ? 'step' : undefined}><span className="ribbon-step"><span className="ribbon-number" aria-hidden="true">{flowStep > step ? <Check size={18} /> : index + 1}</span><strong>{t(label)}</strong></span></li>)}
     </ol></div>
     <p className={`scan-stage ${processing ? 'is-processing' : ''}`} role="status" aria-live="polite">{processing && <LoaderCircle className="spin" size={17} />}{t(stageText)}</p>
-    {(!services.scanner || !services.photos) && <div className="callout subtle service-callout" role="status"><CloudOff size={17} /><span>{services.browser ? t("Photo analysis is not available in guest mode. You can still save a photo, write field notes, and plan care tasks. Saved photos will be marked Not analyzed.") : services.checking ? t("Checking scanner availability…") : t("Scanning is temporarily unavailable. You can preview a photo and keep recording field notes and care tasks.")}</span>{!services.browser && !services.checking && <button className="button button-text" type="button" onClick={services.retry}>{t("Check availability")}</button>}</div>}
-    {activePlots.length === 0 ? <div className="panel scan-no-plots"><div className="empty-icon"><ImagePlus size={28} /></div><h2>{t("Create a growing area to begin scanning")}</h2><p>{t("Every new check belongs to a pineapple growing area or batch, so its history stays organized.")}</p><button className="button button-primary" onClick={() => onNavigate('farms', '', farms.some(farm => !farm.archivedAt) ? 'add-plot' : 'add-farm')}>{t("Set up a farm and growing area ")}<ArrowRight size={17} /></button></div> : <>
-      <input ref={fileInput} className="visually-hidden" type="file" tabIndex={-1} aria-label={t("Choose a pineapple photo")} accept="image/*" onChange={event => receiveImage(event.target.files?.[0])} />
+    {(!services.scanner || (!services.photos && !services.demo)) && <div className="callout subtle service-callout" role="status"><CloudOff size={17} /><span className="scan-guest-message">{services.browser ? t('Guest photos are saved as Not analyzed. Sign in to use the scanner.') : services.checking ? t("Checking scanner availability…") : t("Scanning is temporarily unavailable. You can preview a photo and keep recording field notes and care tasks.")}</span>{services.browser ? <a className="text-link" href="?guest=0">{t('Sign in to scan')}<ArrowRight size={16} /></a> : !services.checking && <button className="button button-text" type="button" onClick={services.retry}>{t("Check availability")}</button>}</div>}
+    {activePlots.length === 0 && !services.demo ? <div className="panel scan-no-plots"><div className="empty-icon"><ImagePlus size={28} /></div><h2>{t("Create a growing area to begin scanning")}</h2><p>{t("Every new check belongs to a pineapple growing area or batch, so its history stays organized.")}</p><button className="button button-primary" onClick={() => onNavigate('farms', '', farms.some(farm => !farm.archivedAt) ? 'add-plot' : 'add-farm')}>{t("Set up a farm and growing area ")}<ArrowRight size={17} /></button></div> : <>
+      <input ref={fileInput} hidden type="file" accept="image/*" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; receiveImage(file); }} />
       {flowStep < 2 ? <section key={flowStep} className="guided-stage grid items-center gap-8 md:grid-cols-2 md:gap-12" aria-labelledby="scan-step-title">
         <div className={`photo-composition ${stage === 'analyzing' ? 'is-scanning' : ''}`} role="group" aria-label={flowStep === 0 ? t("Photo preview. You can drop or paste a photo here.") : t("Photo ready for scanning")} tabIndex={flowStep === 0 ? 0 : -1} onDragOver={event => event.preventDefault()} onDrop={event => receiveTransferredPhoto(event, event.dataTransfer)} onPaste={event => receiveTransferredPhoto(event, event.clipboardData)}>
-          {cameraOpen ? <div className="camera-preview"><video ref={video} autoPlay playsInline muted /><div className="camera-controls"><button className="button button-primary" type="button" ref={captureButton} onClick={capture}><Camera size={17} />{t(" Capture photo")}</button><button className="icon-button" type="button" onClick={stopCamera} aria-label={t("Close camera")}><X size={19} /></button></div></div> : <div className={`scan-preview ${previewUrl ? 'has-photo' : ''}`}>{previewUrl ? <img src={previewUrl} alt={t("Prepared pineapple photo to check")} /> : <div><ImagePlus size={36} strokeWidth={1.3} /><strong>{t("Your photo goes here")}</strong><span>{t("One sample, in clear daylight.")}</span><button className="button button-soft" type="button" onClick={() => fileInput.current?.click()} disabled={processing}><Plus size={16} />{t(" Add photo")}</button></div>}</div>}
+          <div className={`scan-preview ${previewUrl ? 'has-photo' : ''}`}>{previewUrl ? <img src={previewUrl} alt={t("Prepared pineapple photo to check")} /> : <div><ImagePlus size={36} strokeWidth={1.3} aria-hidden="true" /><strong>{t('Choose a pineapple photo')}</strong><span>{t('One clear photo, in good daylight.')}</span><button className="button button-primary photo-choose" type="button" onClick={() => fileInput.current?.click()} disabled={processing}><ImagePlus size={18} aria-hidden="true" />{t('Choose photo')}</button></div>}</div>
           {stage === 'analyzing' && <span className="scan-sweep" aria-hidden="true" />}
-          <span className="photo-caption">{preparedFile ? t("Your photo · prepared for scanning") : t("PHOTO PREVIEW")}<ShieldCheck size={14} /> {services.browser ? t("Saved on this device") : t("Private to you")}</span>
+          <span className="photo-caption"><ShieldCheck size={14} />{t(services.demo ? 'Demo photos are not saved' : services.browser ? 'Saved only after you choose Save photo' : 'Your photo stays private')}</span>
+          {flowStep === 0 && preparedFile && <button className="button button-soft photo-replace" type="button" onClick={() => fileInput.current?.click()} disabled={processing}><ImagePlus size={18} aria-hidden="true" />{t('Replace photo')}</button>}
         </div>
         <div className="guided-action">
-          <span className="eyebrow">{t("STEP ")}{flowStep === 0 ? t("01 / YOUR PHOTO") : t("02 / THE SCAN")}</span>
-          <h2 id="scan-step-title" ref={stepHeading} tabIndex={-1}>{flowStep === 0 ? <>{t("Start with")}<br />{t(" one clear photo.")}</> : <>{t("Ready for")}<br />{t(" a closer look?")}</>}</h2>
-          <p>{flowStep === 0 ? t("Fill the frame with your sample or the affected area. Keep it in focus and avoid glare or heavy shadows.") : services.browser ? t("Save this photo in your growing area’s history. It will be marked Not analyzed. You can add field notes and care tasks from the growing area.") : t("The trained model checks your photo. We’ll save its findings to your growing area, then help you review the next step.")}</p>
-          {flowStep === 0 ? <>
-            <div className="upload-actions"><button className="button button-soft" type="button" onClick={() => fileInput.current?.click()} disabled={processing}><UploadCloud size={17} /> {preparedFile ? t("Replace photo") : t("Upload image")}</button><button className="button button-soft" type="button" ref={cameraTrigger} onClick={openCamera} disabled={processing}><Camera size={17} />{t(" Use camera")}</button></div>
-            <label className="field plot-picker"><span>{t("Save this check to")}</span><select ref={plotSelect} value={plotId} onChange={event => setPlotId(event.target.value)} disabled={processing} required aria-label={t("Farm / growing area")}><option value="">{t("Choose a growing area or batch")}</option>{activePlots.map(plot => <option key={plot.id} value={plot.id}>{farms.find(farm => farm.id === plot.farmId)?.name || t("Farm")} · {plot.name}</option>)}</select></label>
-            <button className="button button-primary button-large guided-next" type="button" disabled={!plotId || !preparedFile || processing || cameraOpen} onClick={() => setFlowStep(1)}>{t("Review photo ")}<ArrowRight size={18} /></button>
-            <p className="helper-text">{!plotId ? t("Choose a growing area above to continue.") : preparedFile ? <><CircleCheck size={15} />{t(" Photo ready. Check that the sample is clear.")}</> : t("Upload, drop, or paste a photo. JPG and PNG are resized for scanning.")}</p>
-          </> : <>
-            <div className="scan-destination"><SproutLabel /><div><small>{t("SCANNING FOR")}</small><strong>{selectedPlot?.name}</strong><span>{farms.find(farm => farm.id === selectedPlot?.farmId)?.name}</span></div></div>
-            <details className="scan-options"><summary>{t("Field note & optional advice")}</summary><div>
+          <h2 id="scan-step-title" ref={stepHeading} tabIndex={-1}>{t(preparedFile ? services.demo ? 'Review your photo' : 'Review and save' : 'Choose your photo')}</h2>
+          <p>{t(services.browser ? 'Check that your photo is clear, choose its growing area, and save. Guest photos are not analyzed.' : services.demo ? 'Use a clear photo of one pineapple. The model result will appear on this screen.' : 'Check that your pineapple is clear and in focus, then choose where to save the result.')}</p>
+          <p className="helper-text">{t('On a phone, your image picker may offer the camera or photo library.')}</p>
+          {!services.demo && <label className="field plot-picker"><span>{t("Save this check to")}</span><select ref={plotSelect} value={plotId} onChange={event => setPlotId(event.target.value)} disabled={processing} required aria-label={t("Farm / growing area")}><option value="">{t("Choose a growing area or batch")}</option>{activePlots.map(plot => <option key={plot.id} value={plot.id}>{farms.find(farm => farm.id === plot.farmId)?.name || t("Farm")} · {plot.name}</option>)}</select></label>}
+            {!services.demo && <details className="scan-options"><summary>{t(services.classification ? "Field note & optional advice" : "Field note")}</summary><div>
               <label className="field"><span>{t("Your field note ")}<em>{t("(optional)")}</em></span><select value={userCondition} onChange={event => setUserCondition(event.target.value)} disabled={processing}><option value="">{t("I have not observed a condition")}</option><option value="normal">{t("Looks normal")}</option><option value="concerning">{t("Looks concerning")}</option><option value="unsure">{t("I am unsure")}</option></select></label>
-              <label className="check-label"><input type="checkbox" checked={shareWanted} onChange={event => setShareWanted(event.target.checked)} disabled={!services.sharing || processing} /><span><strong>{t("Share results for research")}</strong><small>{t("Only the result, model version, month, and your reported condition are shared. Photos, notes, and account details stay private.")}</small></span></label>
-              <details className="optional-ai-settings"><summary>{t("Optional text-only AI advice")}</summary><RecommendationPreference uid={uid} compact /></details>
-            </div></details>
-            <button className="button button-primary button-large guided-next" type="button" disabled={!services.scanner || !services.photos || !plotId || !preparedFile || !online || processing} onClick={analyze}>{stage === 'analyzing' ? <><LoaderCircle className="spin" size={18} />{t(" Analyzing image…")}</> : <><ScanLine size={18} />{t(" Check pineapple ")}<ArrowRight size={18} /></>}</button>
-            {services.browser && !services.scanner && <button className="button button-soft button-large" type="button" disabled={!preparedFile || !plotId || processing} onClick={savePhotoForLater}>{t("Save photo for later ")}<ArrowRight size={18} /></button>}
-            <button className="text-link guided-back" type="button" disabled={processing} onClick={() => setFlowStep(0)}><ArrowLeft size={16} />{t(" Back to photo")}</button>
+              {services.classification && <label className="field">
+                <span>{t("Growth stage")} <em>{t("(optional)")}</em></span>
+                <select value={growthStage} onChange={event => setGrowthStage(event.target.value)} disabled={processing}>
+                  <option value="">{t("Unknown or not recorded")}</option>
+                  <option value="vegetative">{t("Leaf growth")}</option>
+                  <option value="floral_forcing">{t("Flower induction")}</option>
+                  <option value="fruit_development">{t("Fruit development")}</option>
+                  <option value="harvest_window">{t("Approaching harvest")}</option>
+                </select>
+              </label>}
+              <label className="check-label" hidden={!services.sharing}><input type="checkbox" checked={shareWanted} onChange={event => setShareWanted(event.target.checked)} disabled={!services.sharing || !services.classification || processing} /><span><strong>{t("Share results for research")}</strong><small>{t("Only the result, model version, month, and your reported condition are shared. Photos, notes, and account details stay private.")}</small></span></label>
+              {services.classification && <details className="optional-ai-settings"><summary>{t("Optional recommendations")}</summary><RecommendationPreference uid={uid} compact /></details>}
+            </div></details>}
+            {!services.browser && <button className={'button '+(services.scanner&&(services.photos||services.demo)?'button-primary':'button-soft')+' button-large guided-next'} type="button" disabled={!services.scanner || (!services.photos && !services.demo) || (!plotId && !services.demo) || !preparedFile || !online || processing} onClick={analyze}>{stage === 'analyzing' ? <><LoaderCircle className="spin" size={18} />{t(" Analyzing image…")}</> : <><ScanLine size={18} />{t(services.classification ? 'Scan pineapple' : " Find regions ")}<ArrowRight size={18} /></>}</button>}
+            {services.browser && <button className="button button-primary button-large guided-next" type="button" disabled={!preparedFile || !plotId || processing} onClick={savePhotoForLater}>{t('Save photo')}<ArrowRight size={18} /></button>}
+            {!services.browser && !services.classification && <p className="helper-text">{t(services.scanner ? "Detection only · No condition classifier installed." : services.checking ? "Checking scanner availability…" : "Scanner unavailable · Model status could not be checked.")}</p>}
             {!online && <p className="helper-text error-text"><CloudOff size={16} />{t(" Connect to the internet to check.")}</p>}
-          </>}
+          <p className="helper-text">{!plotId && !services.demo ? t("Choose a growing area above to continue.") : !preparedFile ? t('Choose a photo to continue. JPG and PNG are supported.') : null}</p>
           {error && <div className="inline-error" role="alert">{t(error)}</div>}
         </div>
       </section> : prediction && <section className="guided-report" aria-labelledby="scan-result-title">
-        <div className="report-summary-grid grid gap-8 md:grid-cols-[1fr_1.6fr]">
-          <div className="report-photo"><img src={previewUrl} alt={prediction.is_photo_only ? t("Your saved pineapple photo") : t("Your scanned pineapple sample")} /><span className="photo-caption">{selectedPlot?.name}{t(" · Your sample")}</span></div>
-          <div className="result-summary"><span className="eyebrow">{prediction.is_photo_only ? t("STEP 03 / SAVED PHOTO") : t("STEP 03 / MODEL FINDINGS")}</span><div className="result-top"><h2 id="scan-result-title" ref={resultHeading} tabIndex={-1}>{t(prediction.top_class || "No detection")}</h2><StatusPill type={prediction.status_type}>{prediction.status_label}</StatusPill></div><ConditionBadge label={prediction.top_class} /><p>{t(prediction.message)}</p>{!prediction.is_photo_only && <div className="result-numbers"><div><strong>{formatConfidence(prediction.top_confidence)}</strong><span>{t("Model confidence")}</span></div><div><strong>{prediction.detection_count ?? 0}</strong><span>{t("Detected regions")}</span></div></div>}
-          {prediction.recommendation && <div className="recommendation-box"><ShieldCheck size={19} /><p><strong>{t("Suggested next step")}</strong><br />{t(prediction.recommendation)}</p></div>}
-          <p className="helper-text">{prediction.is_photo_only ? t("No diagnosis or AI recommendation has been generated for this photo.") : t("Check the plant in person too. Model confidence does not confirm a diagnosis.")}</p></div>
+        <header className="scan-result-heading">
+          <div>
+            <span className="eyebrow">{t(prediction.is_photo_only ? 'PHOTO RECORD' : 'PHOTO ASSESSMENT')}</span>
+            <h2 id="scan-result-title" ref={resultHeading} tabIndex={-1}>
+              {t(prediction.is_photo_only ? stage === 'saved' ? 'Photo saved' : stage === 'saving' ? 'Saving photo…' : 'Photo not saved' : assessment.title)}
+            </h2>
+            <ScanResultIndicators statusType={prediction.status_type} label={prediction.status_label}
+              confidence={detectionOnly ? null : prediction.top_confidence} photoOnly={prediction.is_photo_only} />
+          </div>
+          <button className="button button-primary" type="button" disabled={processing}
+            onClick={() => fileInput.current?.click()}>
+            <ImagePlus size={18} aria-hidden="true" />
+            {t(prediction.is_photo_only ? 'Add another photo' : 'Scan another image')}
+          </button>
+        </header>
+        <div className="report-summary-grid scan-result-body">
+          <ScanNextStep assessment={assessment} userCondition={userCondition} />
+          <figure className="report-photo">
+            {previewUrl && <img src={previewUrl} alt={t("Original pineapple photo")} />}
+            {selectedPlot && <figcaption className="photo-caption">{selectedPlot.name}</figcaption>}
+          </figure>
         </div>
         {stage === 'saving' && <p className="helper-text"><LoaderCircle className="spin" size={17} />{t(" Saving your check…")}</p>}
+        {stage === 'demo' && <p className="callout subtle">{t('This demo result is shown on screen only. The photo and prediction have not been saved to Records.')}</p>}
+        {stage === 'saved' && error && <p className="inline-error" role="alert">{t(error)}</p>}
+        {removing && <p className="helper-text" role="status">{t('Removing this check and its saved files…')}</p>}
         {stage === 'unsaved' && <div className="unsaved-box" role="alert"><CloudOff size={20} /><div><strong>{t("This result is unsaved")}</strong><p>{t(error)}</p><button className="button button-primary" type="button" disabled={!online} onClick={() => persistResult(prediction, pendingId)}><RefreshCw size={16} />{t(" Retry saving")}</button></div></div>}
-        {stage === 'saved' && <div className="saved-box"><CircleCheck size={19} /><span>{t("Saved to ")}{selectedPlot?.name || t("your growing area")}.</span><button className="button button-text" type="button" onClick={() => onNavigate('plot', plotId)}>{t("View timeline ")}<ArrowRight size={15} /></button></div>}
-        {stage === 'saved' && <RecommendationCard uid={uid} scanId={savedId} autoGenerate />}
-        <details className="full-scan-report"><summary><span><strong>{t("Open detailed report")}</strong><small>{prediction.is_photo_only ? t("Saved photo details") : t("Detected regions, model details & photo preparation")}</small></span><Plus size={20} /></summary><div className="report-details">{resultImage && <figure><img className="result-image" src={resultImage} alt={t("Pineapple image with detected regions marked by the model")} /><figcaption>{t("Regions marked by the model")}</figcaption></figure>}<PredictionDetails scan={displayResult} /><ConfidenceHelp /></div></details>
-        {stage !== 'saving' && <div className="report-actions"><button className="button button-primary" type="button" onClick={reset}><ImagePlus size={17} />{t(" Start another check")}</button><button className="button button-soft" type="button" onClick={() => onNavigate('guide')}>{t("Understand the conditions ")}<ArrowRight size={16} /></button></div>}
+        {stage === 'saved' && <div className="saved-box"><CircleCheck size={19} /><span>{t("Saved to ")}{selectedPlot?.name || t("your growing area")}.</span><button className="button button-primary" type="button" onClick={() => onNavigate('plot', plotId)}>{t("View records ")}<ArrowRight size={15} /></button></div>}
+
+        {stage === 'saved' && !prediction.is_photo_only && !detectionOnly && !removing && <RecommendationCard uid={uid} scanId={savedId} autoGenerate />}
+        {stage === 'saved' && savedId && <details className="full-scan-report">
+          <summary><strong>{t("Record actions")}</strong><Plus size={20} aria-hidden="true" /></summary>
+          <div className="report-details">
+            <button className="button button-text danger-text result-delete" type="button"
+              ref={deleteTrigger} disabled={removing || !services.deletion} aria-expanded={confirmDelete}
+              aria-controls={confirmDelete ? 'delete-result-confirmation' : undefined} onClick={() => setConfirmDelete(true)}>
+              {removing ? <LoaderCircle className="spin" size={17} aria-hidden="true" /> : <Trash2 size={17} aria-hidden="true" />}
+              {t(removing ? 'Removing…' : prediction.is_photo_only ? 'Delete photo' : 'Delete check')}
+            </button>
+            {confirmDelete && <div id="delete-result-confirmation" className="result-delete-confirm"
+              role="group" aria-labelledby="delete-result-title" onKeyDown={event => {
+                if (event.key === 'Escape' && !removing) {
+                  event.preventDefault();
+                  setConfirmDelete(false);
+                  deleteTrigger.current?.focus();
+                }
+              }}>
+              <strong id="delete-result-title">{t('Delete this check?')}</strong>
+              <p>{t('This removes the check, its photos, saved recommendations, and any research contribution. This cannot be undone.')}</p>
+              <div className="result-delete-confirm-actions">
+                <button className="button button-soft" type="button" ref={cancelDelete} disabled={removing}
+                  onClick={() => { setConfirmDelete(false); deleteTrigger.current?.focus(); }}>{t('Cancel')}</button>
+                <button className="button button-text danger-text" type="button" disabled={removing} onClick={removeResult}>
+                  {removing ? <LoaderCircle className="spin" size={17} aria-hidden="true" /> : <Trash2 size={17} aria-hidden="true" />}
+                  {t(removing ? 'Removing…' : 'Delete permanently')}
+                </button>
+              </div>
+            </div>}
+          </div>
+        </details>}
       </section>}
     </>}
-    <div className="scan-footer"><div className="scan-guide-link"><Leaf size={18} /><span>{t("What can the scanner recognize?")}</span><button className="text-link" type="button" onClick={() => onNavigate('guide')}>{t("Explore all 7 conditions ")}<ArrowRight size={16} /></button></div>{services.local && <p><ShieldCheck size={15} />{t(" Your photos stay private on this computer.")}</p>}</div>
-  </div>;
-}
+    <PageHelp><p>{t(services.demo ? "Take a clear photo in daylight and keep the sample in focus. The demo does not require a growing area or save a record." : "Choose where the pineapple is growing so you can find this check later. Take a clear photo in daylight and keep the affected area in focus.")}</p><p>{t("A result suggests what the photo may show. Check the plant in person too. If analysis is unavailable, guest users can save the photo as Not analyzed.")}</p></PageHelp>
 
-function SproutLabel() {
-  return <Leaf size={22} strokeWidth={1.5} aria-hidden="true" />;
+  </div>;
 }

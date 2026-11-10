@@ -12,8 +12,14 @@
     },
     "api/health.mjs": {
       "maxDuration": 10
+    },
+    "api/workspace.mjs": {
+      "maxDuration": 60
     }
   },
+  "rewrites": [
+    { "source": "/api/workspace/:path*", "destination": "/api/workspace?workspacePath=:path*" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

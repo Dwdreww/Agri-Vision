@@ -1,5 +1,6 @@
-// These are the seven classes supported by the current model, not a complete
-// catalogue of pineapple conditions. Sources and mapping notes: docs/conditions.md.
+// Current classifier labels plus reviewed references for historical results.
+// The raw training-label mapping is preserved in models/efficientnet_metrics.json.
+export const activeConditionLabels = ['No Disease', 'Fruit Fasciation Disorder', 'Fruit Rot Disease', 'Multiple Crown Disorder'];
 export const conditionTypes = {
   pathological: { label: 'Pathological disease', description: 'An infectious disease associated with a plant pathogen.' },
   physiological: { label: 'Physiological disorder', description: 'A growth or development disorder associated with plant or growing conditions.' },

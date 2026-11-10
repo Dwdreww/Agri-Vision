@@ -21,4 +21,9 @@ dist/
 AgriVision/
 
 # Local generated outputs
+output/
+tmp/
+.DS_Store
 pipeline_result.jpg
+.vercel
+.env*

@@ -1,5 +1,108 @@
 # Pilot rollout status
 
+## EfficientNet threshold reduced to 35% — 2026-11-04
+
+The latest requested setting is `EFFNET_CONF_THRESHOLD=0.35`, replacing the
+earlier 50% setting. YOLO stays at 0.65. The existing ROI v3 acceptance policy,
+Uncertain fallback and per-scan threshold metadata remain in use.
+
+## EfficientNet confidence gate — 2026-11-04
+
+New crop classifications require at least 50% EfficientNet confidence. Lower
+scores are Uncertain, remain visible as crops, and use inconclusive guidance.
+YOLO remains at 65%. The new policy is versioned as ROI v3; historical results
+retain their original predictions. See `docs/qa/effnet-threshold-2026-11-04.md`.
+
+## Private cloud workspace and replacement EfficientNet — 2026-11-04
+
+The deployed frontend now uses `VITE_WORKSPACE_MODE=cloud`. Existing Firebase
+accounts are unchanged. Twenty-five scans, 50 verified private photo files and
+24 recommendation caches have moved off the Mac. Owner/global usage ledgers
+were merged without resetting attempts. Original files remain for recovery.
+Signed-in users can review and import a guest JSON backup; repeats skip records.
+
+Vercel Hobby provides the private photo/API service, Firestore remains billing
+disabled, and Hugging Face remains CPU Basic. The live model is
+`yolov8m-28a5c00ab63b-effnetb0-5b0e1f7211aa-roi-v2`, at default YOLO threshold
+0.65 with crop-only classification. The growing-area/language layouts and
+requested Settings removals are deployed. See the
+[complete verification and recovery report](cloud-workspace-2026-11-04.md).
+
+Earlier entries below describe historical releases, not the current deployment.
+
+## Limited public demo deployment — 2026-11-03
+
+The owner chose a free-only limited public demo. The existing Vercel project
+now serves `VITE_WORKSPACE_MODE=demo` at https://agri-vision-eosin.vercel.app/.
+Production sign-in, photo preparation and entry to the review step work on a
+fresh disposable account with no farm or growing area. Demo predictions remain
+on the page; the scan flow bypasses record/photo saving, research sharing and
+AI generation. The full local pilot retains its existing behavior.
+
+The existing Hugging Face Space now runs backend commit
+`06efdc2b48f0d8749dcd5dfdec1248214f24793f` on free CPU Basic. Its API-only root
+returns endpoint information; the old frontend routes return 404. The current
+`models/best.pt` and EfficientNet pair replaced the old root weights. No local
+Admin credential was uploaded, and hardware and billing were not upgraded.
+Vercel deployment `dpl_7CBdyjM89TE9E63gWo5fDdTEHN72` forwards authenticated
+requests to that API. Neither service depends on the Mac staying available for
+this limited demo.
+
+All 23 Python tests and 60 frontend tests pass, and the production build passes.
+Both public hosts passed real paired inference and rejected missing, invalid,
+tampered, disabled, revoked and deleted Firebase sessions. A production browser
+scan returned one numbered YOLO region with an EfficientNet classification and
+separate model scores. Desktop and 390px mobile layouts were checked, and the
+demo account had no saved scans or farm requirement. Free-host sleep remains a
+limitation. See [verification evidence](qa/public-demo-2026-11-03.md) and
+[deployment instructions](../DEPLOYMENT.md).
+
+## Detector replaced with best.pt — 2026-11-03
+
+The active detector is now the user-supplied `models/best.pt`, a one-class
+YOLOv8m with class 0 named `item`. It is paired with the existing four-class
+EfficientNet-B0. The active version is
+`yolov8m-273092bf7850-effnetb0-43adddf64b22-roi-v1`. The former generic COCO
+checkpoint and its archived backup have been removed; startup and Docker accept
+the new reviewed checksum. All 17 Python model/backend tests and 11 live checks
+pass, including actual authenticated inference, saved region metadata, advice
+access, privacy, research sharing and cleanup. See [replacement verification](qa/best-detector-2026-11-03.md).
+
+## Scan removal and EffNet care actions — 2026-11-03
+
+Saved scan results now offer Delete check beside Start another check, with an
+inline confirmation, progress and failure recovery. The recommendation prompt
+explicitly uses the supplied EffNet classifications and scores to choose basic
+actions for the four current classes. Standard actions appear even with AI off;
+optional AI uses the existing consent and quota path. Sixty frontend tests,
+70 service tests and 12 live checks pass, including a real Gemini response and
+advice cleanup with scan deletion. See [verification notes](qa/scan-delete-effnet-care-2026-11-03.md).
+
+## Replacement classifier paired — 2026-11-03
+
+The supplied `efficientnet_pineapple_best.pth` and `effnettrain.py` establish the
+exact EfficientNet-B0 head and RGB 224 × 224 validation transform. A restricted
+loader passes strict checkpoint loading and a real CPU forward test with four
+finite output scores; RGB normalization and checksum rejection are also tested.
+The supplied `efficientnet_metrics.json` confirms the four outputs, including
+the original spelling `mutli_crown`. The active backend now pairs YOLO candidate
+regions with EfficientNet classifications, with separate confidence scores and
+no whole-photo fallback when YOLO finds no box. All 16 model/backend tests, 60
+frontend tests, 64 service tests, the production build and 11 live checks pass.
+Live checks cover real authenticated inference, saved region metadata, private
+photos, sanitized sharing, legacy detection-only records and cleanup. Model
+accuracy is not established by these integration tests. See
+[the current model inventory](../models/README.md).
+
+## Model reset — 2026-11-02
+
+The old EfficientNet classifier and original YOLO weights were removed. The active
+backend runs the supplied `models/yolov8m.pt` in detection-only mode while awaiting
+a new classifier. Health separates detector readiness from classifier readiness;
+new records have no condition confidence. Earlier classified records are preserved.
+See [model reset and verification](model-reset-2026-11-02.md). Older sections below
+record the model configuration at their original verification dates.
+
 ## Farmer guidance revision — 2026-10-19
 
 Overview is the starting page after account sign-in or guest entry. It offers an

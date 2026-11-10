@@ -1,6 +1,7 @@
 import os
 import base64
 import json
+import math
 import tempfile
 import threading
 
@@ -9,52 +10,37 @@ os.environ.setdefault("YOLO_CONFIG_DIR", os.path.join(tempfile.gettempdir(), "ul
 import cv2
 import numpy as np
 import torch
-import torch.nn as nn
-
-from flask import Flask, request, jsonify
-from torchvision import transforms, models
-from ultralytics import YOLO
 from PIL import Image
+from flask import Flask, request, jsonify
 import firebase_admin
 from firebase_admin import auth, credentials
+from scanner_auth import InvalidScannerToken, ScannerAuthUnavailable, verify_demo_token
 
-from preprocessing import preprocess_pineapple_image
+from scanner_models import (
+    CLASSIFIER_ARTIFACT, CLASSIFIER_CONDITIONS, DETECTOR_ARTIFACT, DETECTOR_SHA256, classifier_transform, file_sha256,
+    load_classifier, load_classifier_labels, load_detector,
+)
 
-
-# =========================
-# 1. CONFIGURATION
-# =========================
-
+# The previous classifier and original detector have been removed.
+# Use only the supplied replacement weights and their confirmed class mapping.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", os.path.join(BASE_DIR, "yolov8.pt"))
-EFFNET_MODEL_PATH = os.getenv("EFFNET_MODEL_PATH", os.path.join(BASE_DIR, "efficientnetB0.pth"))
-
-YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.15"))
+SCANNER_PROFILE = "yolov8m-efficientnet-b0-regions"
+YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", os.path.join(BASE_DIR, "models", DETECTOR_ARTIFACT))
+EFFNET_MODEL_PATH = os.getenv("EFFNET_MODEL_PATH", os.path.join(BASE_DIR, "models", CLASSIFIER_ARTIFACT))
+CLASSIFIER_METRICS_PATH = os.path.join(BASE_DIR, "models", "efficientnet_metrics.json")
+YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.65"))
+EFFNET_CONF_THRESHOLD = float(os.getenv("EFFNET_CONF_THRESHOLD", "0.35"))
+if not math.isfinite(EFFNET_CONF_THRESHOLD) or not 0 <= EFFNET_CONF_THRESHOLD <= 1:
+    raise ValueError("EFFNET_CONF_THRESHOLD must be between 0 and 1")
 ANNOTATION_JPEG_QUALITY = int(os.getenv("ANNOTATION_JPEG_QUALITY", "82"))
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "15"))
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "")
-MODEL_VERSION = os.getenv("MODEL_VERSION", "unversioned").strip() or "unversioned"
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "").strip()
-
-CLASS_NAMES = [
-    "Crown_Rot_Disease",
-    "Fruit_Fasciation_Disorder",
-    "Fruit_Rot_Disease",
-    "Mealybug_Wilt_Disease",
-    "Multiple_Crown_Disorder",
-    "No_Disease",
-    "Root_Rot_Disease"
-]
-
-NUM_CLASSES = len(CLASS_NAMES)
-
+FIREBASE_AUTH_MODE = os.getenv("FIREBASE_AUTH_MODE", "admin").strip()
+FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY", "").strip()
+if FIREBASE_AUTH_MODE not in ("admin", "rest"):
+    raise ValueError("FIREBASE_AUTH_MODE must be admin or rest")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-# =========================
-# 2. FLASK APP
-# =========================
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
@@ -97,6 +83,14 @@ def require_firebase_user():
             "error": "Sign in to scan an image."
         }), 401)
 
+    if FIREBASE_AUTH_MODE == "rest":
+        try:
+            return verify_demo_token(parts[1], FIREBASE_PROJECT_ID, FIREBASE_WEB_API_KEY), None
+        except InvalidScannerToken:
+            return None, (jsonify({"success": False, "error": "Your session has expired or is invalid. Please sign in again."}), 401)
+        except ScannerAuthUnavailable:
+            return None, (jsonify({"success": False, "error": "Authentication service is unavailable. Please try again later."}), 503)
+
     try:
         firebase_app = get_firebase_app()
     except Exception as error:
@@ -135,71 +129,16 @@ def add_cors_headers(response):
     return response
 
 
-# =========================
-# 3. LOAD MODELS ONCE
-# =========================
-
-print("======================================")
-print("AGRI-VISION BACKEND STARTING")
-print("======================================")
-print(f"Using device: {device}")
-
-if not os.path.exists(YOLO_MODEL_PATH):
-    raise FileNotFoundError(f"YOLO model not found:\n{YOLO_MODEL_PATH}")
-
-if not os.path.exists(EFFNET_MODEL_PATH):
-    raise FileNotFoundError(f"EfficientNet model not found:\n{EFFNET_MODEL_PATH}")
-
-print("Loading YOLO model...")
-yolo_model = YOLO(YOLO_MODEL_PATH)
-print("YOLO model loaded.")
-
-print("Loading EfficientNet model...")
-effnet_model = models.efficientnet_b0(weights=None)
-
-in_features = effnet_model.classifier[1].in_features
-effnet_model.classifier[1] = nn.Linear(in_features, NUM_CLASSES)
-
-try:
-    state_dict = torch.load(
-        EFFNET_MODEL_PATH,
-        map_location=device,
-        weights_only=True
-    )
-except TypeError:
-    state_dict = torch.load(
-        EFFNET_MODEL_PATH,
-        map_location=device
-    )
-
-effnet_model.load_state_dict(state_dict)
-effnet_model = effnet_model.to(device)
-effnet_model.eval()
-
-print("EfficientNet model loaded.")
-print("Backend ready.")
-
-
-# =========================
-# 4. IMAGE TRANSFORM
-# =========================
-
-effnet_transforms = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        [0.485, 0.456, 0.406],
-        [0.229, 0.224, 0.225]
-    )
-])
-
-
-# =========================
-# 5. HELPER FUNCTIONS
-# =========================
-
-def pretty_class_name(name):
-    return name.replace("_", " ")
+# Both checkpoints and the reviewed output mapping are required at startup.
+if not os.path.isfile(YOLO_MODEL_PATH):
+    raise FileNotFoundError(f"YOLO model not found: {YOLO_MODEL_PATH}")
+print(f"Loading {DETECTOR_ARTIFACT} YOLOv8m detector and EfficientNet-B0 crop classifier.")
+yolo_model = load_detector(YOLO_MODEL_PATH)
+classifier_labels = load_classifier_labels(CLASSIFIER_METRICS_PATH)
+effnet_model = load_classifier(EFFNET_MODEL_PATH).to(device)
+effnet_transform = classifier_transform()
+MODEL_VERSION = f"yolov8m-{file_sha256(YOLO_MODEL_PATH)[:12]}-effnetb0-{file_sha256(EFFNET_MODEL_PATH)[:12]}-roi-v3"
+print(f"Scanner ready on {device}: {MODEL_VERSION}")
 
 
 def encode_image_to_base64(img):
@@ -224,52 +163,6 @@ def decode_uploaded_image(file_bytes):
         raise ValueError("Image could not be loaded. Please upload a valid JPG or PNG image.")
 
     return img
-
-
-def get_status_from_detections(detections):
-    if len(detections) == 0:
-        return {
-            "status_label": "Monitor",
-            "status_type": "monitor",
-            "message": "No YOLO detections passed the confidence threshold.",
-            "recommendation": "Try a clearer image, better lighting, or lower YOLO_CONF_THRESHOLD for testing.",
-            "top_class": "No Detection",
-            "top_confidence": 0
-        }
-
-    disease_detections = [
-        detection for detection in detections
-        if detection["class_name"] != "No_Disease"
-    ]
-
-    if disease_detections:
-        top_detection = max(
-            disease_detections,
-            key=lambda item: item["efficientnet_confidence"]
-        )
-
-        return {
-            "status_label": "Risk",
-            "status_type": "risk",
-            "message": f"Possible issue detected: {pretty_class_name(top_detection['class_name'])}.",
-            "recommendation": "Inspect the crop manually, compare symptoms, and retake the image under better lighting if needed.",
-            "top_class": pretty_class_name(top_detection["class_name"]),
-            "top_confidence": round(top_detection["efficientnet_confidence"] * 100, 1)
-        }
-
-    top_detection = max(
-        detections,
-        key=lambda item: item["efficientnet_confidence"]
-    )
-
-    return {
-        "status_label": "Healthy",
-        "status_type": "healthy",
-        "message": "Detected region was classified as No Disease.",
-        "recommendation": "Continue regular crop monitoring and keep current care practices.",
-        "top_class": pretty_class_name(top_detection["class_name"]),
-        "top_confidence": round(top_detection["efficientnet_confidence"] * 100, 1)
-    }
 
 
 def draw_label(img, label, x1, y1, image_width, image_height, color):
@@ -311,119 +204,159 @@ def draw_label(img, label, x1, y1, image_width, image_height, color):
 
 
 def run_pipeline(file_bytes):
-    img = decode_uploaded_image(file_bytes)
-    image_height, image_width = img.shape[:2]
-
-    preprocessed = preprocess_pineapple_image(img)
-
-    # PRE-PROCESSING OUTPUT USED BY YOLO:
-    # The model input keeps the pineapple sharp, improves contrast, reduces
-    # noise, and softens non-pineapple background areas.
-    yolo_input = preprocessed["model_input"]
-
-    # PRE-PROCESSING OUTPUT USED BY EFFICIENTNET:
-    # Crops are taken from the contrast-enhanced image so disease color and
-    # texture remain visible for classification.
-    classification_source = preprocessed["contrast_enhanced"]
-
-    results = yolo_model(yolo_input, verbose=False)[0]
-
+    original = decode_uploaded_image(file_bytes)
+    image_height, image_width = original.shape[:2]
+    # Let Ultralytics apply its standard letterboxing and normalization to the
+    # full original photo. Classifier crops come from this unannotated image.
+    results = yolo_model(
+        original.copy(), imgsz=640, conf=YOLO_CONF_THRESHOLD, device=str(device), verbose=False
+    )[0]
     detections = []
-
     for box in results.boxes:
-        yolo_confidence = box.conf[0].item()
-
-        if yolo_confidence < YOLO_CONF_THRESHOLD:
+        confidence = float(box.conf[0].item())
+        if not math.isfinite(confidence) or not YOLO_CONF_THRESHOLD <= confidence <= 1:
             continue
-
-        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-
-        x1 = max(0, min(x1, image_width - 1))
-        y1 = max(0, min(y1, image_height - 1))
-        x2 = max(0, min(x2, image_width))
-        y2 = max(0, min(y2, image_height))
-
+        coordinates = box.xyxy[0].tolist()
+        if len(coordinates) != 4 or not all(math.isfinite(value) for value in coordinates):
+            continue
+        x1, y1 = (math.floor(value) for value in coordinates[:2])
+        x2, y2 = (math.ceil(value) for value in coordinates[2:])
+        x1, x2 = max(0, min(x1, image_width)), max(0, min(x2, image_width))
+        y1, y2 = max(0, min(y1, image_height)), max(0, min(y2, image_height))
         if x2 <= x1 or y2 <= y1:
             continue
+        class_id = int(box.cls[0].item())
+        detector_label = results.names[class_id]
+        detections.append({
+            "region_id": len(detections) + 1,
+            "detector_class_id": class_id,
+            "detector_class_name": detector_label,
+            "yolo_confidence": confidence,
+            "yolo_confidence_percent": round(confidence * 100, 1),
+            "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+            "crop_width": x2 - x1,
+            "crop_height": y2 - y1,
+            "classification_input": "yolo-bounding-box-crop"
+        })
 
-        crop = classification_source[y1:y2, x1:x2]
+    # Resize each selected RGB crop using the training script's validation
+    # transform. Bounded batches keep memory independent of the number of boxes.
+    crop_images = []
+    with torch.inference_mode():
+        for start in range(0, len(detections), 16):
+            batch = detections[start:start + 16]
+            tensors = []
+            for detection in batch:
+                box = detection["bbox"]
+                # No padding, segmentation, or whole-photo fallback: everything
+                # outside this selected box is discarded, its interior unchanged.
+                crop = original[box["y1"]:box["y2"], box["x1"]:box["x2"]]
+                crop_images.append({
+                    "region_id": detection["region_id"],
+                    "bbox": dict(box),
+                    "width": detection["crop_width"],
+                    "height": detection["crop_height"],
+                    "image": encode_image_to_base64(crop)
+                })
+                rgb = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
+                tensors.append(effnet_transform(rgb))
+            logits = effnet_model(torch.stack(tensors).to(device))
+            if logits.shape != (len(batch), len(classifier_labels)) or not torch.isfinite(logits).all():
+                raise ValueError("Classifier returned invalid output scores.")
+            probabilities = torch.softmax(logits, dim=1).cpu()
+            for detection, scores in zip(batch, probabilities):
+                index = int(scores.argmax().item())
+                confidence = float(scores[index].item())
+                # Compare in the score tensor's precision so an exact 35%
+                # float32 score is accepted at a configured threshold of 0.35.
+                accepted = bool((scores[index] >= EFFNET_CONF_THRESHOLD).item())
+                condition = CLASSIFIER_CONDITIONS[index] if accepted else "Uncertain"
+                detection.update({
+                    "class_name": condition.replace(" ", "_"),
+                    "pretty_class_name": condition,
+                    "classifier_class_index": index if accepted else None,
+                    "classifier_class_name": classifier_labels[index] if accepted else None,
+                    "efficientnet_confidence": confidence,
+                    "efficientnet_confidence_percent": round(confidence * 100, 1),
+                    "classification_available": True,
+                    "classification_accepted": accepted,
+                    "classifier_confidence_threshold": EFFNET_CONF_THRESHOLD,
+                })
 
-        if crop.size == 0:
-            continue
-
-        crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-        crop_pil = Image.fromarray(crop_rgb)
-        input_tensor = effnet_transforms(crop_pil).unsqueeze(0).to(device)
-
-        with torch.no_grad():
-            outputs = effnet_model(input_tensor)
-            probabilities = torch.nn.functional.softmax(outputs, dim=1)[0]
-            confidence, predicted_idx = torch.max(probabilities, 0)
-
-        final_class = CLASS_NAMES[predicted_idx.item()]
-        effnet_confidence = confidence.item()
-
-        detection_data = {
-            "class_name": final_class,
-            "pretty_class_name": pretty_class_name(final_class),
-            "efficientnet_confidence": effnet_confidence,
-            "efficientnet_confidence_percent": round(effnet_confidence * 100, 1),
-            "yolo_confidence": yolo_confidence,
-            "yolo_confidence_percent": round(yolo_confidence * 100, 1),
-            "bbox": {
-                "x1": x1,
-                "y1": y1,
-                "x2": x2,
-                "y2": y2
-            }
-        }
-
-        detections.append(detection_data)
-
-        if final_class == "No_Disease":
-            color = (0, 255, 0)
-        else:
-            color = (0, 180, 255)
-
-        label = f"{pretty_class_name(final_class)}: {effnet_confidence * 100:.1f}%"
-
-        cv2.rectangle(
-            img,
-            (x1, y1),
-            (x2, y2),
-            color,
-            4
-        )
-
+    # Draw only after every crop has been classified so overlay pixels never
+    # enter the classifier, including when candidate regions overlap.
+    img = original.copy()
+    for number, detection in enumerate(detections, start=1):
+        x1, y1, x2, y2 = (detection["bbox"][key] for key in ("x1", "y1", "x2", "y2"))
+        color = (82, 196, 243)
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
         draw_label(
-            img=img,
-            label=label,
-            x1=x1,
-            y1=y1,
-            image_width=image_width,
-            image_height=image_height,
-            color=color
+            img, f"Region {number} | {detection['pretty_class_name']}: {detection['efficientnet_confidence_percent']:.1f}%",
+            x1, y1, image_width, image_height, color
         )
 
-    summary = get_status_from_detections(detections)
-    annotated_image = encode_image_to_base64(img)
-
+    # Surface a predicted disease/disorder before a No Disease region. Among
+    # those regions, use the highest classifier confidence for the summary.
+    classified = [item for item in detections if item["classification_accepted"]]
+    uncertain = [item for item in detections if not item["classification_accepted"]]
+    concerns = [item for item in classified if item["classifier_class_index"] != 0]
+    # An unclassified crop must not allow a different No Disease crop to turn
+    # the whole photo green. Accepted concerns still take priority.
+    top = max(concerns or uncertain or classified, key=lambda item: item["efficientnet_confidence"], default=None)
+    status_type = {0: "healthy", 1: "monitor", 2: "risk", 3: "monitor"}.get(
+        top["classifier_class_index"] if top else None, "monitor"
+    )
     return {
         "success": True,
         "model_version": MODEL_VERSION,
+        "scanner_profile": SCANNER_PROFILE,
+        "inference_mode": "region-classification",
+        "classification_available": True,
+        "classification_scope": "yolo-regions",
+        "classifier_input": "yolo-bounding-box-crops",
+        "classifier_confidence_threshold": EFFNET_CONF_THRESHOLD,
+        "yolo_confidence_threshold": YOLO_CONF_THRESHOLD,
+        "classified_region_count": len(classified),
+        "image_versions": {
+            "original": encode_image_to_base64(original),
+            "yolo_crops": crop_images
+        },
+        "experimental": True,
         "device": str(device),
         "image_width": image_width,
         "image_height": image_height,
         "detection_count": len(detections),
         "detections": detections,
-        "preprocessing_steps": preprocessed["steps"],
+        "detector_top_confidence": max((item["yolo_confidence_percent"] for item in detections), default=0),
+        "top_class": top["pretty_class_name"] if top else "No Detection",
+        "top_confidence": top["efficientnet_confidence_percent"] if top else None,
+        "status_label": {"healthy": "Healthy", "risk": "Risk", "monitor": "Monitor"}[status_type],
+        "status_type": status_type,
+        "message": (
+            "Some detected crops are below the classification threshold and are marked Uncertain. Review the regions or take another clear photo."
+            if uncertain else
+            "YOLO selected candidate regions and EfficientNet classified each crop. Review the numbered regions below."
+            if detections else
+            "YOLO found no candidate regions, so EfficientNet did not classify this photo. No Detection does not mean No Disease."
+        ),
+        "recommendation": "Inspect the photographed sample and compare the region predictions with what you see in person. The summary prioritizes a predicted disease or disorder when regions differ.",
+        "preprocessing_steps": [{
+            "order": 1, "name": "YOLO Input Preparation",
+            "used_for": "The full photo uses standard YOLO resizing, letterboxing, and normalization."
+        }, {
+            "order": 2, "name": "EfficientNet Crop Preparation",
+            "used_for": "Each unannotated YOLO region is converted to RGB, resized to 224 × 224, and normalized using the training settings."
+        }],
         "preprocessing_summary": {
-            "segmentation_mask_coverage_percent": preprocessed["mask_coverage_percent"],
-            "dark_spot_candidate_percent": preprocessed["dark_spot_coverage_percent"],
-            "segmentation_used_fallback": preprocessed["segmentation_used_fallback"]
+            "scanner_profile": SCANNER_PROFILE,
+            "detector_input": "original",
+            "classification_available": True,
+            "classifier_input": "unannotated-yolo-crops",
+            "crop_background": "outside-bounding-box-removed",
+            "original_classified": False,
+            "classifier_input_size": [224, 224]
         },
-        "annotated_image": annotated_image,
-        **summary
+        "annotated_image": encode_image_to_base64(img)
     }
 
 
@@ -433,7 +366,11 @@ def run_pipeline(file_bytes):
 
 @app.route("/")
 def index():
-    return jsonify({"service": "AGRI-VISION prediction API"})
+    return jsonify({
+        "service": "AGRI-VISION prediction API",
+        "health": "/api/health",
+        "predict": "/api/predict"
+    })
 
 
 @app.route("/health")
@@ -442,7 +379,25 @@ def health():
     return jsonify({
         "success": True,
         "message": "AGRI-VISION backend is running.",
-        "scanner_ready": bool(FIREBASE_PROJECT_ID),
+        "scanner_ready": bool(FIREBASE_PROJECT_ID) and (FIREBASE_AUTH_MODE == "admin" or bool(FIREBASE_WEB_API_KEY)),
+        "auth_mode": FIREBASE_AUTH_MODE,
+        "model_version": MODEL_VERSION,
+        "scanner_profile": SCANNER_PROFILE,
+        "experimental": True,
+        "detector_ready": True,
+        "classification_ready": True,
+        "inference_mode": "region-classification",
+        "active_detector": "YOLOv8m",
+        "detector_artifact": os.path.basename(YOLO_MODEL_PATH),
+        "detector_sha256": DETECTOR_SHA256,
+        "detector_classes": yolo_model.names,
+        "active_classifier": "EfficientNet-B0",
+        "classification_scope": "yolo-regions",
+        "classifier_input": "yolo-bounding-box-crops",
+        "image_versions": ["original", "yolo_crops"],
+        "classifier_classes": list(CLASSIFIER_CONDITIONS),
+        "classifier_confidence_threshold": EFFNET_CONF_THRESHOLD,
+        "yolo_confidence_threshold": YOLO_CONF_THRESHOLD,
         "device": str(device)
     })
 
