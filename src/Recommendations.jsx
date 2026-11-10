@@ -175,9 +175,16 @@ function RecommendationContent({ uid, scanId, autoGenerate = false }) {
           <strong>{item.text}</strong>{item.reason && <p>{item.reason}</p>}
         </li>)}</ul>
       </div>}
+      {recommendation.photoObservations && <div>
+        <h4>{t("What Gemini sees in your photo")}</h4>
+        {recommendation.photoObservations.length ? <ul className="recommendation-list">
+          {recommendation.photoObservations.map((item, index) => <li key={index}>{item}</li>)}
+        </ul> : <p>{t("Gemini could not identify clear features in this photo.")}</p>}
+        <p>{recommendation.analysis}</p>
+      </div>}
       {recommendation.sections?.length ? <details className="agronomist-report">
         <summary>{t("Read the full report")}</summary>
-        <p>{recommendation.analysis}</p>
+        {!recommendation.photoObservations && <p>{recommendation.analysis}</p>}
         <ol>{recommendation.sections.map(section => <li key={section.title}>
           <h4>{section.title}</h4><p>{section.text}</p>
         </li>)}</ol>

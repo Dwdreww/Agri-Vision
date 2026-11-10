@@ -1279,6 +1279,8 @@ export const filipino = {
   "Fruit development": "Paglaki ng bunga",
   "Approaching harvest": "Malapit nang anihin",
   "What to do first": "Mga unang dapat gawin",
+  "What Gemini sees in your photo": "Mga nakikita ng Gemini sa iyong larawan",
+  "Gemini could not identify clear features in this photo.": "Walang malinaw na katangiang natukoy ang Gemini sa larawang ito.",
   "Read the full report": "Basahin ang buong ulat",
   "The photo check was unclear": "Hindi malinaw ang resulta ng larawan",
   "Take a clearer photo in daylight and inspect the pineapple in the field.": "Kumuha ng mas malinaw na larawan sa liwanag ng araw at tingnan ang pinya sa taniman.",

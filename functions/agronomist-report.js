@@ -3,6 +3,11 @@
 const reportTemplate = require("./agronomist-prompt");
 
 const conditions = {
+  "Unclassified": {
+    label: "The scanner could not classify this photo",
+    nature: "Check the fruit and crown in person. Compare their shape and surface with nearby pineapples.",
+    check: "Photograph the whole fruit and crown in clear light. Include a closer photo of any area that has changed."
+  },
   "No Disease": {
     label: "No condition spotted in this photo",
     nature: "Continue routine care and check the fruit and leaves in person for any changes.",
@@ -24,6 +29,21 @@ const conditions = {
     check: "Mark where suspect fruit was found and look for similar changes nearby during your next inspection."
   }
 };
+
+const exclusiveObservations = [
+  ["The visible shell is mostly green.", "The visible shell is mostly yellow or orange.", "The visible shell has both green and yellow areas."],
+  ["The visible shell eyes look rounded or raised.", "The visible shell eyes look flat."],
+  ["One crown is visible.", "More than one crown is visible."]
+];
+const photoObservations = [
+  ...exclusiveObservations.flat(),
+  "The fruit appears flattened or fan-shaped.",
+  "The fruit appears uneven in shape.",
+  "The top has a dense cluster of leaves.",
+  "A dark or discolored patch is visible on the fruit.",
+  "The fruit surface has a visible break or damaged spot.",
+  "The fruit or crown is partly hidden or outside the frame."
+];
 
 // Market profiles follow Philippine DA and DOST-PCAARRD cultivar references.
 // https://bafs.da.gov.ph/wp-content/uploads/2025/04/IG-for-PNS-Pineapple.pdf
@@ -71,7 +91,7 @@ function reportContext(scan) {
   };
 }
 
-function supportsAgronomist(label) { return Object.hasOwn(conditions, label); }
+function supportsAgronomist(label) { return label !== "Unclassified" && Object.hasOwn(conditions, label); }
 
 function reportChoices(condition) {
   const { nature, check } = conditions[condition];
@@ -94,23 +114,26 @@ function reportChoices(condition) {
   ];
 }
 
-const prompt = `Apply the grower report template below to the actual saved scan data supplied separately. The app rules in this paragraph take precedence over conflicting directions in the template. Use result.condition and result.regions as the photo assessment. Use the template's Healthy topic for No Disease, its Fruit Fasciation topic for Fruit Fasciation Disorder, its Multiple Crown topic for Multiple Crown Disorder, and its Fruit Rot topic for Fruit Rot Disease. Use confidence and disagreement only to prioritize field checks. Treat diagnoses, severity, causes, treatment and harvest instructions, rates, recipes, prices, yields, and numeric targets in the template as unverified examples. Use only the reviewed choices supplied with the scan. The app adds known cultivar and growth stage privately; use general guidance for missing context and never infer field notes.
+const prompt = `Apply the grower report template below to the supplied photo and scan data. The app rules in this paragraph take precedence over conflicting directions in the template. Use result.condition and result.regions as the scanner result. Use the template's Healthy topic for No Disease, its Fruit Fasciation topic for Fruit Fasciation Disorder, its Multiple Crown topic for Multiple Crown Disorder, and its Fruit Rot topic for Fruit Rot Disease. For Unclassified, use general observation and field checks without assigning a condition. Use confidence and disagreement only to prioritize field checks. Treat diagnoses, severity, causes, treatment and harvest instructions, rates, recipes, prices, yields, and numeric targets in the template as unverified examples. Use only the reviewed choices supplied with the scan. The app adds known cultivar and growth stage privately; use general guidance for missing context and never infer field notes.
 
 Return the JSON selection specified by the app schema. Choose up to four exact immediate action texts in practical order and one option, "a" or "b", for each of the fifteen topics in order. The app renders these selections as the report. Keep the condition tentative and prioritize the field checks and follow-up from the applicable template topic.
+
+When the schema asks for photoObservations, select up to three statements directly supported by the image. Read the image itself for visible details. Do not select a statement solely because the scanner reported a condition. Use an empty list when the pineapple or its features are unclear. Avoid contradictory choices and use at most one statement each for shell color, eye shape and crown count. Treat shell color as an observation and do not infer ripeness, sweetness, internal quality or safety from it.
 
 --- Grower report template ---
 ${reportTemplate}
 --- End grower report template ---`;
 
-function buildAgronomistRequest(prepared, approvedActions) {
-  const choices = reportChoices(prepared.input.condition);
+function buildAgronomistRequest(prepared, approvedActions, hasPhoto) {
+  const condition = prepared.photoReview ? "Unclassified" : prepared.input.condition;
+  const choices = reportChoices(condition);
   return {
     systemInstruction: { parts: [{ text: prompt }] },
     contents: [{ role: "user", parts: [{ text: JSON.stringify({
       result: {
-        condition: prepared.input.condition,
-        confidence: prepared.input.confidence,
-        regions: prepared.input.regions
+        condition,
+        confidence: prepared.photoReview ? null : prepared.input.confidence,
+        regions: prepared.photoReview ? [] : prepared.input.regions
       },
       immediateActions: approvedActions,
       topics: choices.map(([title, a, b]) => ({ title, a, b }))
@@ -123,22 +146,28 @@ function buildAgronomistRequest(prepared, approvedActions) {
         type: "OBJECT",
         properties: {
           actions: { type: "ARRAY", minItems: 1, maxItems: 4, items: { type: "STRING", enum: approvedActions } },
-          sections: { type: "ARRAY", minItems: choices.length, maxItems: choices.length, items: { type: "STRING", enum: ["a", "b"] } }
+          sections: { type: "ARRAY", minItems: choices.length, maxItems: choices.length, items: { type: "STRING", enum: ["a", "b"] } },
+          ...(hasPhoto && { photoObservations: { type: "ARRAY", maxItems: 3, items: { type: "STRING", enum: photoObservations } } })
         },
-        required: ["actions", "sections"]
+        required: ["actions", "sections", ...(hasPhoto ? ["photoObservations"] : [])]
       }
     }
   };
 }
 
-function assembleAgronomist(value, prepared, actions) {
-  const choices = reportChoices(prepared.input.condition);
+function assembleAgronomist(value, prepared, actions, hasPhoto) {
+  const condition = prepared.photoReview ? "Unclassified" : prepared.input.condition;
+  const choices = reportChoices(condition);
   const actionByText = new Map(actions.map(action => [action.text, action]));
-  if (!value || typeof value !== "object" || Object.keys(value).length !== 2
+  if (!value || typeof value !== "object" || Object.keys(value).length !== (hasPhoto ? 3 : 2)
       || !Array.isArray(value.actions) || value.actions.length < 1 || value.actions.length > 4
       || new Set(value.actions).size !== value.actions.length || !value.actions.every(text => actionByText.has(text))
       || !Array.isArray(value.sections) || value.sections.length !== choices.length
       || !value.sections.every(choice => choice === "a" || choice === "b")) return null;
+  if (hasPhoto && (!Array.isArray(value.photoObservations) || value.photoObservations.length > 3
+      || new Set(value.photoObservations).size !== value.photoObservations.length
+      || !value.photoObservations.every(observation => photoObservations.includes(observation))
+      || exclusiveObservations.some(group => group.filter(observation => value.photoObservations.includes(observation)).length > 1))) return null;
 
   const profile = cultivars[prepared.reportContext.cultivar];
   const stage = growthStages[prepared.reportContext.stage];
@@ -150,9 +179,10 @@ function assembleAgronomist(value, prepared, actions) {
   }
   if (stage) sections[13].text += ` ${stage}`;
 
-  const label = conditions[prepared.input.condition].label;
+  const label = conditions[condition].label;
   const mixed = new Set(prepared.input.regions.map(region => region.condition)).size > 1;
-  const wording = prepared.input.confidence < 65 || mixed
+  const wording = prepared.photoReview ? "Use the visible details to guide an in-person check."
+    : prepared.input.confidence < 65 || mixed
     ? "The photo is hard to interpret. Check the pineapple in the field before deciding what to do."
     : "Check the pineapple in the field to see whether this photo assessment matches what you observe.";
   // A possible rot finding should surface before routine care in a mixed scan.
@@ -163,6 +193,7 @@ function assembleAgronomist(value, prepared, actions) {
     concerns: [],
     actions: priority.map(text => ({ ...actionByText.get(text) })),
     tips: [],
+    ...(hasPhoto && { photoObservations: value.photoObservations }),
     sections
   };
 }

@@ -56,7 +56,10 @@ regenerated.
 The current opt-in covers the saved original scan photo and validated model
 result. Earlier text-only consent does not authorize sending photos. Gemini
 reviews the photo alongside EfficientNet's classification and selects field
-checks from the existing 15-section agronomist prompt. Missing photos leave
+checks from the existing 15-section agronomist prompt. The result shows visible
+features Gemini selected from the photo. If a completed scan has no detection or
+an uncertain crop, the report describes visible features and general field
+checks without assigning a condition. Missing photos leave
 standard guidance or existing saved advice available. Farm and plot names,
 account identifiers, saved locations, and field notes stay in the workspace.
 Research sharing remains a separate choice.

@@ -11,7 +11,7 @@ const jpeg = Buffer.from([255,216,255,224,1,2,3]);
 const consent = { regenerate: false, consentVersion: recommendations.CONSENT_VERSION };
 const scan = { topClass:'Fruit Rot Disease',topConfidence:80,detectionCount:1,statusType:'risk',modelVersion:'yolov8m-28a5c00ab63b-effnetb0-43adddf64b22-roi-v2',inferenceMode:'region-classification',classificationAvailable:true,
   detections:[{classifier_class_index:2,classifier_class_name:'fruit_rot',class_name:'Fruit_Rot_Disease',efficientnet_confidence_percent:80}],storageProvider:'vercel-blob',hasPhotos:true };
-function fixture() {
+function fixture(fetchImpl) {
   const db = new MemoryFirestore([['users/alice',{}],['users/bob',{}],['users/alice/scans/private',scan],['users/bob/scans/theirs',scan],['users/locked',{deletionInProgress:true}]]);
   const files = new Map([[photoPath('alice','private','prepared.jpg'),jpeg],[photoPath('bob','theirs','prepared.jpg'),jpeg]]);
   const removed = [];
@@ -28,12 +28,14 @@ function fixture() {
   const deletedUsers = [];
   const auth = { verifyIdToken: async (token,revoked) => { assert.equal(revoked,true);if(!['alice','bob','locked'].includes(token))throw Object.assign(new Error('bad'),{code:'auth/invalid-id-token'});return {uid:token,auth_time:Math.floor(Date.now()/1000)}; },deleteUser: async uid=>deletedUsers.push(uid) };
   let generations = 0;
-  const handle = createCloudWorkspace({ db,auth,photos,apiKey:'test-only',recommendationProvider:async (prepared,{photo})=>{
+  const recommendationProvider = async (prepared,{photo})=>{
     assert.equal(prepared.input.condition,'Fruit Rot Disease');
     assert.deepEqual(photo,jpeg);
     generations++;
     return {source:'gemini',analysis:'Inspect the model-reported fruit rot.',concerns:[],actions:[{text:'Inspect the fruit.',reason:'Compare the model result in person.'}],tips:[],provider:'Google Gemini',model:'gemini-3.5-flash-lite',generatedAt:new Date().toISOString()};
-  } });
+  };
+  const handle = createCloudWorkspace({ db,auth,photos,apiKey:'test-only',fetchImpl,
+    recommendationProvider: fetchImpl ? undefined : recommendationProvider });
   const request = (path,{uid='alice',method='GET',body}={}) => handle(new Request('https://example.com/api/workspace/'+path,{method,headers:{...(uid?{Authorization:'Bearer '+uid}:{}),...(body&&!(body instanceof FormData)?{'Content-Type':'application/json'}:{})},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{})}));
   return { db,files,removed,request,deletedUsers,photoReads,generations:()=>generations };
 }
@@ -102,6 +104,43 @@ test('a missing original uses standard guidance without a provider call or quota
   assert.deepEqual(f.photoReads,[photoPath('alice','private','prepared.jpg')]);
   assert.equal(f.generations(),0);
   assert.equal(f.db.records.has('users/alice/private/recommendation-usage'),false);
+});
+
+test('a completed inconclusive scan can receive a photo report after opt-in',async()=>{
+  let calls = 0;
+  const observations = ['The top has a dense cluster of leaves.'];
+  const f = fixture(async (_url, options) => {
+    calls++;
+    const body = JSON.parse(options.body);
+    const [image, text] = body.contents[0].parts;
+    assert.deepEqual(Buffer.from(image.inlineData.data, 'base64'), jpeg);
+    const input = JSON.parse(text.text);
+    assert.deepEqual(input.result, {condition:'Unclassified',confidence:null,regions:[]});
+    const result = {actions: input.immediateActions, sections: Array(15).fill('a'), photoObservations:observations};
+    return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(result)}]}}]});
+  });
+  const inconclusive = {...scan,topClass:'No Detection',topConfidence:null,statusType:'monitor',detectionCount:0,detections:[]};
+  f.db.records.set('users/alice/scans/private',inconclusive);
+  const prepared = recommendations.prepareScan(inconclusive);
+  f.db.records.set(recommendationPath('alice','private'),{
+    version:recommendations.SCHEMA_VERSION,
+    fingerprint:prepared.previousFingerprints[0],
+    recommendation:recommendations.standardRecommendation(prepared)
+  });
+  const route = 'scans/private/recommendations';
+  assert.equal((await f.request(route,{method:'POST',body:consent})).status,403);
+  assert.equal(calls,0);
+  assert.deepEqual(f.photoReads,[]);
+  f.db.records.set('users/alice',{preferences:{recommendations:{version:consent.consentVersion,enabled:true}}});
+  const response = await f.request(route,{method:'POST',body:consent});
+  assert.equal(response.status,200);
+  const {recommendation} = await response.json();
+  assert.equal(recommendation.source,'gemini');
+  assert.match(recommendation.analysis,/could not classify/);
+  assert.deepEqual(recommendation.photoObservations,observations);
+  assert.equal(recommendation.sections.length,15);
+  assert.deepEqual((await (await f.request(route)).json()).recommendation,recommendation);
+  assert.equal(calls,1);
 });
 
 test('cloud scan deletion removes private subdocuments and photos without touching another user',async()=>{

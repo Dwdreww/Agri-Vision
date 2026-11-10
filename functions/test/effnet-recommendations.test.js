@@ -34,9 +34,10 @@ for (const [index, name] of names.entries()) {
     assert.deepEqual(standardRecommendation(prepared).actions, condition.actions);
     const result = await requestGemini(prepared, { apiKey: "test-only-key", photo, fetchImpl: async (_url, options) => {
       const body = JSON.parse(options.body);
-      const payload = JSON.parse(body.contents[0].parts[0].text);
+      const [image, textPart] = body.contents[0].parts;
+      const payload = JSON.parse(textPart.text);
       assert.equal(payload.result.condition, name);
-      assert.deepEqual(body.contents[0].parts[1].inlineData, { mimeType: "image/jpeg", data: photo.toString("base64") });
+      assert.deepEqual(image.inlineData, { mimeType: "image/jpeg", data: photo.toString("base64") });
       assert.deepEqual(payload.immediateActions, condition.actions.map(action => action.text));
       assert.equal(payload.topics.length, 15);
       const prompt = body.systemInstruction.parts[0].text;
@@ -46,12 +47,14 @@ for (const [index, name] of names.entries()) {
       assert.match(reportTemplate, /^### 15\. FOLLOW-UP MONITORING/m);
       const text = JSON.stringify(body);
       for (const forbidden of ["bird", "99.1", "PRIVATE_NOTE", "PRIVATE_FARM"]) assert.ok(!text.includes(forbidden), forbidden);
-      const content = { actions: payload.immediateActions, sections: Array(15).fill("a") };
+      const content = { actions: payload.immediateActions, sections: Array(15).fill("a"),
+        photoObservations: ["The visible shell is mostly yellow or orange."] };
       return { ok: true, text: async () => JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(content) }] } }] }) };
     } });
     assert.equal(result.source, "gemini");
     assert.ok(result.actions.length >= 2);
-    assert.equal(PROMPT_VERSION, "pineapple-agronomist-v7");
+    assert.equal(PROMPT_VERSION, "pineapple-agronomist-v8");
+    assert.deepEqual(result.photoObservations, ["The visible shell is mostly yellow or orange."]);
     assert.equal(result.sections.length, 15);
     assert.match(result.analysis, /hard to interpret/);
     assert.doesNotMatch(JSON.stringify(result.sections), /Recorded variety/);
@@ -127,11 +130,13 @@ test("agronomist output rejects omitted sections, invented advice, and numeric c
   const prepared = prepareScan({ ...scan([region(3)]), cultivar: "Unknown private notes", growthStage: "Unknown private stage" });
   assert.deepEqual(prepared.reportContext, { cultivar: null, stage: null });
   for (const content of [
-    { actions: [prepared.condition.actions[0].text], sections: Array(14).fill("a") },
-    { actions: [prepared.condition.actions[0].text], sections: Array(15).fill("Apply 10 mL of bleach.") },
-    { actions: ["Apply two spoonfuls of bleach."], sections: Array(15).fill("a") }
+    { actions: [prepared.condition.actions[0].text], sections: Array(14).fill("a"), photoObservations: [] },
+    { actions: [prepared.condition.actions[0].text], sections: Array(15).fill("Apply 10 mL of bleach."), photoObservations: [] },
+    { actions: ["Apply two spoonfuls of bleach."], sections: Array(15).fill("a"), photoObservations: [] },
+    { actions: [prepared.condition.actions[0].text], sections: Array(15).fill("a"), photoObservations: ["The fruit is ripe and safe to eat."] },
+    { actions: [prepared.condition.actions[0].text], sections: Array(15).fill("a"), photoObservations: ["One crown is visible.", "More than one crown is visible."] }
   ]) {
-    await assert.rejects(requestGemini(prepared, { apiKey: "test", fetchImpl: async () => ({
+    await assert.rejects(requestGemini(prepared, { apiKey: "test", photo, fetchImpl: async () => ({
       ok: true, text: async () => JSON.stringify({ candidates: [{ finishReason: "STOP", content: {
         parts: [{ text: JSON.stringify(content) }]
       } }] })

@@ -39,6 +39,7 @@ function validCachedRecommendation(value) {
   const list = items => Array.isArray(items) && items.length <= 3 && items.every(text);
   return value && ["gemini", "standard"].includes(value.source) && text(value.analysis)
     && list(value.concerns) && list(value.tips)
+    && (value.photoObservations === undefined || (value.source === "gemini" && list(value.photoObservations)))
     && Array.isArray(value.actions) && value.actions.length > 0 && value.actions.length <= 4
     && value.actions.every(action => action && text(action.text) && text(action.reason))
     && (value.sections === undefined || (value.source === "gemini" && Array.isArray(value.sections)
@@ -158,9 +159,11 @@ function createRecommendationService({ store, getScan, loadPhoto, hasPhotoConsen
       const prepared = prepareScan(scan);
       const cached = await readCached(uid, id, prepared);
       checkCancelled();
-      if (cached && !data.regenerate) return { available, recommendation: cached };
+      if (cached && !data.regenerate && !(prepared.photoReview && cached.source === "standard")) {
+        return { available, recommendation: cached };
+      }
       const standard = standardRecommendation(prepared, now());
-      if (prepared.inconclusive) {
+      if (prepared.inconclusive && !prepared.photoReview) {
         try { await store.write(uid, id, prepared.fingerprint, standard); }
         catch {
           const error = failure("The recommendation could not be saved. Your scan is still saved.", 503, undefined, "AI_STORAGE_UNAVAILABLE");

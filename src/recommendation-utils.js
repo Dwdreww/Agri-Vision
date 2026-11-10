@@ -48,6 +48,9 @@ export function normalizeRecommendation(value) {
   const report = sections.length === 15 && sections.every(section => section.title && section.text) ? sections : [];
   return {
     source: value.source, analysis, concerns: textList(value.concerns), actions, tips: textList(value.tips), sections: report,
+    ...(value.source === 'gemini' && Array.isArray(value.photoObservations) && {
+      photoObservations: textList(value.photoObservations.slice(0, 3))
+    }),
     provider: textValue(value.provider, 100), model: textValue(value.model, 150), generatedAt: textValue(value.generatedAt, 100)
   };
 }
@@ -56,6 +59,7 @@ export function recommendationText(value) {
   const recommendation = normalizeRecommendation(value);
   if (!recommendation) return '';
   return [recommendation.source === 'standard' ? 'Standard guidance' : 'Recommendations', recommendation.analysis,
+    recommendation.photoObservations?.length ? `Photo observations\n${recommendation.photoObservations.map(item => `• ${item}`).join('\n')}` : '',
     recommendation.concerns.length ? `Concerns\n${recommendation.concerns.map(item => `• ${item}`).join('\n')}` : '',
     recommendation.actions.length ? `Recommended actions\n${recommendation.actions.map(item => `• ${item.text}${item.reason ? ` — ${item.reason}` : ''}`).join('\n')}` : '',
     recommendation.tips.length ? `Additional tips\n${recommendation.tips.map(item => `• ${item}`).join('\n')}` : '',
