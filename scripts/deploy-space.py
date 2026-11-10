@@ -52,13 +52,13 @@ operations = [CommitOperationAdd(path_in_repo=file, path_or_fileobj=str(folder /
 existing = set(api.list_repo_files(repo, repo_type="space"))
 removed = [file for file in (
     "yolov8.pt", "efficientnetB0.pth", "index.html", "app.js", "style.css",
-    "models/bestv3.pt", "models/efficientnet_pineapple_best.pth",
+    "models/bestv4.pt", "models/efficientnet_pineapple_best.pth",
     "api/health.mjs", "api/predict.mjs", "vercel.json",
 ) if file in existing]
 operations.extend(CommitOperationDelete(path_in_repo=file) for file in removed)
 commit = api.create_commit(repo, repo_type="space", parent_commit=info.sha,
     operations=operations,
-    commit_message="Replace scanner weights with YOLO bestv4 and EfficientNet v2")
+    commit_message="Restore the YOLO bestv3 detector")
 evidence = {"repository": repo, "commit": commit.oid, "url": commit.commit_url,
     "removedLegacyFiles": removed, "hardware": "cpu-basic", "authMode": "rest"}
 (release / "backend-deployment.json").write_text(json.dumps(evidence, indent=2) + "\n")

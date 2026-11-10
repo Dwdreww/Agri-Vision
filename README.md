@@ -15,7 +15,7 @@ Settings are secondary destinations. See [interface notes](DESIGN.md).
 
 ## Photos and model results
 
-YOLOv8m `models/bestv4.pt` selects regions at a default threshold of **0.50**.
+YOLOv8m `models/bestv3.pt` selects regions at a default threshold of **0.50**.
 The unannotated rectangular crops go to EfficientNet-B0
 (`models/efficientnet_pineapple_bestv2.pth`). A crop needs at least **0.35**
 classifier confidence. Lower scores are **Uncertain**. No detected region
@@ -23,7 +23,7 @@ means no classification. Results show the original scan photo. The four
 confirmed outputs are No Disease, Fruit Fasciation Disorder,
 Fruit Rot Disease and Multiple Crown Disorder.
 
-Current version: `yolov8m-f53a9470b13c-effnetb0-03af1ac8bba3-roi-v3`.
+Current version: `yolov8m-28a5c00ab63b-effnetb0-03af1ac8bba3-roi-v3`.
 See [model inventory](models/README.md) for hashes, preparation and verification
 limits. These model suggestions support field inspection; confidence is not a
 measure of disease severity or verified field accuracy.

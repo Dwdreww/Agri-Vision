@@ -7,7 +7,7 @@
 - Firebase project: `agri-vision-pilot`, Authentication and Firestore, billing disabled.
 - Photo storage: Vercel **Private** Blob `agri-vision-photos`, Singapore, Hobby.
 - Workspace mode: `cloud` in production and preview.
-- Active model: `yolov8m-f53a9470b13c-effnetb0-03af1ac8bba3-roi-v3`.
+- Active model: `yolov8m-28a5c00ab63b-effnetb0-03af1ac8bba3-roi-v3`.
 
 The November 3 unsaved model demo has been replaced with the private cloud
 workspace. Existing account records, photos and recommendations are accessible
@@ -72,7 +72,7 @@ python scripts/deploy-space.py
 
 The deployment script verifies the allowlisted release hashes, existing owner,
 repository and free CPU hardware. Current backend commit:
-`678e87824179e195b7ba6a92ff84e87303da37c4`. The API processes images in memory;
+`69c4c1c2b9bc3434fdd017ce74c73755afa2530b`. The API processes images in memory;
 photo persistence belongs to the private workspace service.
 
 ## Local development and recovery

@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 const root = path.resolve(import.meta.dirname, '..');
 const output = path.join(root, 'output', 'release-2026-11-04', 'backend');
 const files = ['app.py', 'scanner_models.py', 'scanner_auth.py', 'requirements.txt', 'Dockerfile', '.dockerignore',
-  'models/bestv4.pt', 'models/efficientnet_pineapple_bestv2.pth', 'models/efficientnet_metrics.json'];
+  'models/bestv3.pt', 'models/efficientnet_pineapple_bestv2.pth', 'models/efficientnet_metrics.json'];
 await fs.mkdir(output, { recursive: true });
 const manifest = [];
 for (const file of files) {
@@ -27,7 +27,7 @@ app_port: 7860
 
 # Agri-Vision model demo API
 
-YOLOv8m bestv4.pt selects candidate regions and EfficientNet-B0
+YOLOv8m bestv3.pt selects candidate regions and EfficientNet-B0
 efficientnet_pineapple_bestv2.pth assigns four condition classes to the
 unannotated bounding-box crops only. Both original and
 YOLO crop image versions are returned. Firebase sign-in is required. Uploaded photos are processed

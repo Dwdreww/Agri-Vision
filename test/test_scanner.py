@@ -27,12 +27,12 @@ class ScannerTests(unittest.TestCase):
         self.assertFalse((ROOT / "efficientnetB0.pth").exists())
         self.assertFalse((ROOT / "yolov8.pt").exists())
         self.assertFalse((ROOT / "models/yolov8m-test.pt").exists())
-        self.assertFalse((ROOT / "models/bestv3.pt").exists())
+        self.assertFalse((ROOT / "models/bestv4.pt").exists())
         self.assertFalse((ROOT / "models/efficientnet_pineapple_best.pth").exists())
         self.assertFalse(scanner.effnet_model.training)
         self.assertEqual(file_sha256(scanner.EFFNET_MODEL_PATH), CLASSIFIER_SHA256)
         self.assertEqual(scanner.classifier_labels, CLASSIFIER_LABELS)
-        self.assertEqual(Path(scanner.YOLO_MODEL_PATH), ROOT / "models/bestv4.pt")
+        self.assertEqual(Path(scanner.YOLO_MODEL_PATH), ROOT / "models/bestv3.pt")
         self.assertFalse((ROOT / "models/yolov8m.pt").exists())
         self.assertFalse((ROOT / "models/archive/yolov8m-coco.pt").exists())
         self.assertEqual(file_sha256(scanner.YOLO_MODEL_PATH), DETECTOR_SHA256)
@@ -148,9 +148,9 @@ class ScannerTests(unittest.TestCase):
             self.assertTrue(0 <= item["efficientnet_confidence_percent"] <= 100)
             self.assertTrue(0 <= item["yolo_confidence_percent"] <= 100)
 
-    def test_sample_without_regions_stays_unclassified(self):
+    def test_blank_image_without_regions_stays_unclassified(self):
         with patch.object(scanner, "effnet_model") as classify:
-            result = scanner.run_pipeline((ROOT / "pineappletest.png").read_bytes())
+            result = scanner.run_pipeline(self.blank)
         classify.assert_not_called()
         self.assertEqual(result["detection_count"], 0)
         self.assertEqual(result["top_class"], "No Detection")
@@ -250,7 +250,7 @@ class ScannerTests(unittest.TestCase):
         self.assertTrue(health["detector_ready"])
         self.assertTrue(health["classification_ready"])
         self.assertEqual(health["active_classifier"], "EfficientNet-B0")
-        self.assertEqual(health["detector_artifact"], "bestv4.pt")
+        self.assertEqual(health["detector_artifact"], "bestv3.pt")
         self.assertEqual(health["detector_sha256"], DETECTOR_SHA256)
         self.assertEqual(health["detector_classes"], {"0": "item"})
         self.assertEqual(health["classifier_classes"], list(CLASSIFIER_CONDITIONS))
