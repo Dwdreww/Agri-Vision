@@ -3,7 +3,7 @@
   "source_filename": "bestv3.pt",
   "sha256": "28a5c00ab63b92c052f5e4701cdc0f79f857f59ca6c7f5e81e78e78f41b544c5",
   "inspection_date": "2026-11-04",
-  "active": true,
+  "active": false,
   "model_family": "YOLOv8m",
   "task": "detect",
   "output_count": 1,

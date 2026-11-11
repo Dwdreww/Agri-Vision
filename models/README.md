@@ -1,30 +1,30 @@
 # Active model inventory
 
-The active pair is `bestv3.pt` YOLOv8m and
+The active pair is `bestv4.pt` YOLOv8m and
 `efficientnet_pineapple_bestv2.pth` EfficientNet-B0.
 
 | Active artifact | SHA-256 |
 | --- | --- |
-| `bestv3.pt` | `28a5c00ab63b92c052f5e4701cdc0f79f857f59ca6c7f5e81e78e78f41b544c5` |
+| `bestv4.pt` | `f53a9470b13c1e41e4821ce0622c38676fe4e4c48c7d63dbc355002631b53826` |
 | `efficientnet_pineapple_bestv2.pth` | `03af1ac8bba3d0f65f318a5fbf1cb4f57cdbc7374e4d44f2c0708d8ff3fee42d` |
 | `efficientnet_metrics.json` | `82cd3f16bdfc97cd8b3c03c78dcdc702a947a211510bc4426e116f86625ee111` |
 
 ## Detector and loading
 
-The user supplied `Downloads/bestv3.pt`. It strictly matches the installed
+The user supplied `Downloads/bestv4.pt`. It strictly matches the installed
 YOLOv8m architecture, with 25,856,899 parameters, 640-pixel input, and one class:
 index 0, `item`. Its label selects a candidate region, not a condition.
 
 Loading verifies the exact checksum, uses PyTorch `weights_only=True` with a
 fixed allowlist, checks finite weights, and strictly copies the state into the
 installed one-class architecture. Checkpoint configuration is not used to build
-executable model code. `bestv3.inspection.json` records the detector inspection.
+executable model code. `bestv3.inspection.json` records the previous detector.
 
 The default detector confidence threshold is **0.65 (65%)**.
 `YOLO_CONF_THRESHOLD` can override it at startup.
 
 EfficientNet accepts a crop classification only when its maximum softmax score
-is **at least 0.35 (35%)**, configurable with `EFFNET_CONF_THRESHOLD`. Below that
+is **at least 0.65 (65%)**, configurable with `EFFNET_CONF_THRESHOLD`. Below that
 threshold the crop remains visible as **Uncertain**, without a condition index or
 label. Raw confidence is retained for review. No Detection still means no boxes.
 A low-confidence crop prevents an overall Healthy summary when other crops are
@@ -79,7 +79,7 @@ macro F1.
 its reported accuracy does not evaluate this replacement checkpoint.
 
 Profile: `yolov8m-efficientnet-b0-regions`.
-Version: `yolov8m-28a5c00ab63b-effnetb0-03af1ac8bba3-roi-v3`.
+Version: `yolov8m-f53a9470b13c-effnetb0-03af1ac8bba3-roi-v3`.
 Detector and classifier scores are separate. The summary prioritizes a predicted
 disease/disorder, then the highest classifier confidence. Historical versions
 remain unchanged and recommendation normalization supports both ROI v1 and v2.

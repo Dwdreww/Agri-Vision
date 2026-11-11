@@ -55,7 +55,9 @@ async function run(){
     const result=await r.json();
     if(r.status!==200)console.log(JSON.stringify({generationStatus:r.status,errorCode:result.errorCode}));
     assert.equal(r.status,200);assert.equal(result.recommendation.source,'gemini');
-    assert.equal(result.recommendation.sections.length,15);
+    assert.equal(result.recommendation.sections.length,10);
+    assert.equal(result.recommendation.sections[0].title,'Image Check & Diagnosis');
+    assert.ok(Array.isArray(result.recommendation.photoObservations));
     assert.equal((await scanRef.collection('private').doc('recommendations').get()).exists,true);
   });
   await check('another account cannot delete owner scan',async()=>{const r=await request('actions/deleteScan',{user:1,method:'POST',body:{scanId}});assert.equal(r.status,404);assert.equal((await scanRef.get()).exists,true);});

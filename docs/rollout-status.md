@@ -1,8 +1,14 @@
 # Pilot rollout status
 
+## YOLO bestv4 and updated agronomist report — 2026-11-11
+
+YOLO uses `bestv4.pt`. Both detection and EfficientNet classification require
+0.65 confidence. With opt-in, Gemini uses the saved scan photo and its
+EfficientNet result to prepare the new 10-section report.
+
 ## EfficientNet threshold reduced to 35% — 2026-11-04
 
-The latest requested setting is `EFFNET_CONF_THRESHOLD=0.35`, replacing the
+This release set `EFFNET_CONF_THRESHOLD=0.35`, replacing the
 earlier 50% setting. YOLO stays at 0.65. The existing ROI v3 acceptance policy,
 Uncertain fallback and per-scan threshold metadata remain in use.
 

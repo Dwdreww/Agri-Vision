@@ -10,8 +10,8 @@ from ultralytics import YOLO
 from ultralytics.nn.modules import Bottleneck, C2f, Concat, Conv, Detect, DFL, SPPF
 from ultralytics.nn.tasks import DetectionModel
 
-DETECTOR_ARTIFACT = "bestv3.pt"
-DETECTOR_SHA256 = "28a5c00ab63b92c052f5e4701cdc0f79f857f59ca6c7f5e81e78e78f41b544c5"
+DETECTOR_ARTIFACT = "bestv4.pt"
+DETECTOR_SHA256 = "f53a9470b13c1e41e4821ce0622c38676fe4e4c48c7d63dbc355002631b53826"
 DETECTOR_LABELS = {0: "item"}
 CLASSIFIER_ARTIFACT = "efficientnet_pineapple_bestv2.pth"
 CLASSIFIER_SHA256 = "03af1ac8bba3d0f65f318a5fbf1cb4f57cdbc7374e4d44f2c0708d8ff3fee42d"

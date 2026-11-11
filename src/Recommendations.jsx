@@ -186,7 +186,10 @@ function RecommendationContent({ uid, scanId, autoGenerate = false }) {
         <summary>{t("Read the full report")}</summary>
         {!recommendation.photoObservations && <p>{recommendation.analysis}</p>}
         <ol>{recommendation.sections.map(section => <li key={section.title}>
-          <h4>{section.title}</h4><p>{section.text}</p>
+          <h4>{section.title}</h4>
+          {recommendation.sections.length === 10
+            ? <ul className="recommendation-list">{section.text.split('\n').map((line, index) => <li key={index}>{line}</li>)}</ul>
+            : <p>{section.text}</p>}
         </li>)}</ol>
       </details> : <>
         <p>{recommendation.analysis}</p>

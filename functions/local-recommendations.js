@@ -43,7 +43,7 @@ function validCachedRecommendation(value) {
     && Array.isArray(value.actions) && value.actions.length > 0 && value.actions.length <= 4
     && value.actions.every(action => action && text(action.text) && text(action.reason))
     && (value.sections === undefined || (value.source === "gemini" && Array.isArray(value.sections)
-      && value.sections.length === 15 && value.sections.every(section => text(section?.title) && text(section?.text))))
+      && [10, 15].includes(value.sections.length) && value.sections.every(section => text(section?.title) && text(section?.text))))
     && typeof value.generatedAt === "string" && Number.isFinite(Date.parse(value.generatedAt))
     && (value.source === "standard" ? value.provider === null && value.model === null
       : value.provider === "Google Gemini" && value.model === MODEL);
@@ -127,6 +127,7 @@ function createRecommendationService({ store, getScan, loadPhoto, hasPhotoConsen
       const previous = await store.read(uid, id, fingerprint);
       if (!previous) continue;
       if (previous.source === "standard") return standardRecommendation(prepared, new Date(previous.generatedAt));
+      if (previous.sections?.length === 15 && previous.photoObservations !== undefined) return previous;
       try {
         const { analysis, concerns, actions, tips } = previous;
         validateContent({ analysis, concerns, actions, tips }, prepared);

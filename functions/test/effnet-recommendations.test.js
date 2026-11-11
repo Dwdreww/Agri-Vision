@@ -39,23 +39,23 @@ for (const [index, name] of names.entries()) {
       assert.equal(payload.result.condition, name);
       assert.deepEqual(image.inlineData, { mimeType: "image/jpeg", data: photo.toString("base64") });
       assert.deepEqual(payload.immediateActions, condition.actions.map(action => action.text));
-      assert.equal(payload.topics.length, 15);
+      assert.equal(payload.topics.length, 10);
       const prompt = body.systemInstruction.parts[0].text;
       assert.ok(prompt.includes(reportTemplate));
       assert.match(prompt, /Review both before applying the report instructions/);
       assert.match(prompt, /take precedence over conflicting directions/);
-      assert.match(reportTemplate, /^### 15\. FOLLOW-UP MONITORING/m);
+      assert.match(reportTemplate, /^### 10\. Estimated Cost vs./m);
       const text = JSON.stringify(body);
       for (const forbidden of ["bird", "99.1", "PRIVATE_NOTE", "PRIVATE_FARM"]) assert.ok(!text.includes(forbidden), forbidden);
-      const content = { actions: payload.immediateActions, sections: Array(15).fill("a"),
+      const content = { actions: payload.immediateActions, sections: Array(10).fill("a"),
         photoObservations: ["The visible shell is mostly yellow or orange."] };
       return { ok: true, text: async () => JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(content) }] } }] }) };
     } });
     assert.equal(result.source, "gemini");
     assert.ok(result.actions.length >= 2);
-    assert.equal(PROMPT_VERSION, "pineapple-agronomist-v8");
+    assert.equal(PROMPT_VERSION, "pineapple-agronomist-v9");
     assert.deepEqual(result.photoObservations, ["The visible shell is mostly yellow or orange."]);
-    assert.equal(result.sections.length, 15);
+    assert.equal(result.sections.length, 10);
     assert.match(result.analysis, /hard to interpret/);
     assert.doesNotMatch(JSON.stringify(result.sections), /Recorded variety/);
   });
@@ -115,13 +115,13 @@ test("known cultivar and growth stage personalize locally while private text sta
           assert.ok(!JSON.stringify(payload).includes(privateData), privateData);
         }
         return { ok: true, text: async () => JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [
-          { text: JSON.stringify({ actions: payload.immediateActions.slice(1), sections: Array(15).fill("b") }) }
+          { text: JSON.stringify({ actions: payload.immediateActions.slice(1), sections: Array(10).fill("b") }) }
         ] } }] }) };
       }
     });
-    assert.ok(result.sections[0].text.includes(expected));
-    assert.ok(result.sections[12].text.includes(expected));
-    assert.match(result.sections[13].text, /Near harvest/);
+    assert.ok(result.sections[1].text.includes(expected));
+    assert.ok(result.sections[9].text.includes(expected));
+    assert.match(result.sections[3].text, /Near harvest/);
     assert.match(result.actions[0].text, /areas of decay/);
   }
 });
@@ -130,11 +130,11 @@ test("agronomist output rejects omitted sections, invented advice, and numeric c
   const prepared = prepareScan({ ...scan([region(3)]), cultivar: "Unknown private notes", growthStage: "Unknown private stage" });
   assert.deepEqual(prepared.reportContext, { cultivar: null, stage: null });
   for (const content of [
-    { actions: [prepared.condition.actions[0].text], sections: Array(14).fill("a"), photoObservations: [] },
-    { actions: [prepared.condition.actions[0].text], sections: Array(15).fill("Apply 10 mL of bleach."), photoObservations: [] },
-    { actions: ["Apply two spoonfuls of bleach."], sections: Array(15).fill("a"), photoObservations: [] },
-    { actions: [prepared.condition.actions[0].text], sections: Array(15).fill("a"), photoObservations: ["The fruit is ripe and safe to eat."] },
-    { actions: [prepared.condition.actions[0].text], sections: Array(15).fill("a"), photoObservations: ["One crown is visible.", "More than one crown is visible."] }
+    { actions: [prepared.condition.actions[0].text], sections: Array(9).fill("a"), photoObservations: [] },
+    { actions: [prepared.condition.actions[0].text], sections: Array(10).fill("Apply 10 mL of bleach."), photoObservations: [] },
+    { actions: ["Apply two spoonfuls of bleach."], sections: Array(10).fill("a"), photoObservations: [] },
+    { actions: [prepared.condition.actions[0].text], sections: Array(10).fill("a"), photoObservations: ["The fruit is ripe and safe to eat."] },
+    { actions: [prepared.condition.actions[0].text], sections: Array(10).fill("a"), photoObservations: ["One crown is visible.", "More than one crown is visible."] }
   ]) {
     await assert.rejects(requestGemini(prepared, { apiKey: "test", photo, fetchImpl: async () => ({
       ok: true, text: async () => JSON.stringify({ candidates: [{ finishReason: "STOP", content: {

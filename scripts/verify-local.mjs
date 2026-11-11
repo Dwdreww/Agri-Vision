@@ -124,9 +124,9 @@ try {
   assert.equal(prediction.scanner_profile, scannerHealth.scanner_profile);
   assert.match(prediction.model_version, /^yolov8m-[a-f0-9]{12}-effnetb0-[a-f0-9]{12}-roi-v3$/);
   assert.equal(scannerHealth.classification_ready, true);
-  assert.equal(scannerHealth.detector_artifact, 'bestv3.pt');
-  assert.equal(scannerHealth.detector_sha256, '28a5c00ab63b92c052f5e4701cdc0f79f857f59ca6c7f5e81e78e78f41b544c5');
-  assert.equal(scannerHealth.model_version, 'yolov8m-28a5c00ab63b-effnetb0-03af1ac8bba3-roi-v3');
+  assert.equal(scannerHealth.detector_artifact, 'bestv4.pt');
+  assert.equal(scannerHealth.detector_sha256, 'f53a9470b13c1e41e4821ce0622c38676fe4e4c48c7d63dbc355002631b53826');
+  assert.equal(scannerHealth.model_version, 'yolov8m-f53a9470b13c-effnetb0-03af1ac8bba3-roi-v3');
   assert.deepEqual(scannerHealth.detector_classes, { 0: 'item' });
   assert.equal(scannerHealth.active_classifier, 'EfficientNet-B0');
   assert.equal(prediction.classification_available, true);

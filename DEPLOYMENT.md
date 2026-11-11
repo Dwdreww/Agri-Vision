@@ -7,7 +7,7 @@
 - Firebase project: `agri-vision-pilot`, Authentication and Firestore, billing disabled.
 - Photo storage: Vercel **Private** Blob `agri-vision-photos`, Singapore, Hobby.
 - Workspace mode: `cloud` in production and preview.
-- Active model: `yolov8m-28a5c00ab63b-effnetb0-03af1ac8bba3-roi-v3`.
+- Active model: `yolov8m-f53a9470b13c-effnetb0-03af1ac8bba3-roi-v3`.
 
 The November 3 unsaved model demo has been replaced with the private cloud
 workspace. Existing account records, photos and recommendations are accessible
@@ -61,8 +61,9 @@ QA output and design archives from deployed files.
 The existing `Drewtopiaa/AgriVision` Space remains on `cpu-basic`. Set the public
 Firebase project/API key and `FIREBASE_AUTH_MODE=rest`; never upload the owner's
 Admin credential. The user-supplied files and exact hashes are in the
-[model inventory](models/README.md). YOLO defaults to 0.65. EfficientNet requires at least 0.35 confidence; the Space sets
-`EFFNET_CONF_THRESHOLD=0.35`.
+[model inventory](models/README.md). YOLO detection and EfficientNet classification
+both require at least 0.65 confidence. The Space sets `YOLO_CONF_THRESHOLD=0.65`
+and `EFFNET_CONF_THRESHOLD=0.65`.
 
 ```sh
 node scripts/prepare-release.mjs
@@ -72,7 +73,7 @@ python scripts/deploy-space.py
 
 The deployment script verifies the allowlisted release hashes, existing owner,
 repository and free CPU hardware. Current backend commit:
-`3acdff0b7f70eb02a75eafbddab11398a6fe9400`. The API processes images in memory;
+`ddc1082492c50c997bc5eb4b8e232a3f54979c36`. The API processes images in memory;
 photo persistence belongs to the private workspace service.
 
 ## Local development and recovery

@@ -42,10 +42,10 @@ export function normalizeRecommendation(value) {
   const analysis = textValue(value.analysis);
   const actions = Array.isArray(value.actions) ? value.actions.slice(0, 12).map(action => ({ text: textValue(action?.text), reason: textValue(action?.reason) })).filter(action => action.text) : [];
   if (!analysis) return null;
-  const sections = Array.isArray(value.sections) && value.sections.length === 15
+  const sections = value.source === 'gemini' && Array.isArray(value.sections) && [10, 15].includes(value.sections.length)
     ? value.sections.map(section => ({ title: textValue(section?.title, 120), text: textValue(section?.text, 700) }))
     : [];
-  const report = sections.length === 15 && sections.every(section => section.title && section.text) ? sections : [];
+  const report = sections.every(section => section.title && section.text) ? sections : [];
   return {
     source: value.source, analysis, concerns: textList(value.concerns), actions, tips: textList(value.tips), sections: report,
     ...(value.source === 'gemini' && Array.isArray(value.photoObservations) && {
@@ -63,6 +63,9 @@ export function recommendationText(value) {
     recommendation.concerns.length ? `Concerns\n${recommendation.concerns.map(item => `• ${item}`).join('\n')}` : '',
     recommendation.actions.length ? `Recommended actions\n${recommendation.actions.map(item => `• ${item.text}${item.reason ? ` — ${item.reason}` : ''}`).join('\n')}` : '',
     recommendation.tips.length ? `Additional tips\n${recommendation.tips.map(item => `• ${item}`).join('\n')}` : '',
-    ...recommendation.sections.map(({ title, text }, index) => `${index + 1}. ${title}\n${text}`)
+    ...recommendation.sections.map(({ title, text }, index) => {
+      const content = recommendation.sections.length === 10 ? text.split('\n').map(line => `• ${line}`).join('\n') : text;
+      return `${index + 1}. ${title}\n${content}`;
+    })
   ].filter(Boolean).join('\n\n');
 }

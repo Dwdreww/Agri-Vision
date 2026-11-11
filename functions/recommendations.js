@@ -5,7 +5,7 @@ const { reportContext, supportsAgronomist, buildAgronomistRequest, assembleAgron
 
 const MODEL = "gemini-3.5-flash-lite";
 const CONSENT_VERSION = "2026-11-10-photo";
-const PROMPT_VERSION = "pineapple-agronomist-v8";
+const PROMPT_VERSION = "pineapple-agronomist-v9";
 const SCHEMA_VERSION = 1;
 const PROVIDER_TIMEOUT_MS = 60000;
 const PUBLIC_AI_ERROR_CODES = Object.freeze([
@@ -134,6 +134,7 @@ function prepareScan(scan) {
     input, condition, detectionOnly, agronomist, photoReview, reportContext: context,
     fingerprint: fingerprintFor(PROMPT_VERSION, agronomist || photoReview ? context : null, photoReview),
     previousFingerprints: [
+      fingerprintFor("pineapple-agronomist-v8", agronomist || photoReview ? context : null, photoReview),
       fingerprintFor("pineapple-agronomist-v7", agronomist ? context : null),
       fingerprintFor("pineapple-agronomist-v6", agronomist ? context : null),
       fingerprintFor("pineapple-agronomist-v5", agronomist ? context : null),

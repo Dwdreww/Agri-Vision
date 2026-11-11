@@ -27,12 +27,12 @@ class ScannerTests(unittest.TestCase):
         self.assertFalse((ROOT / "efficientnetB0.pth").exists())
         self.assertFalse((ROOT / "yolov8.pt").exists())
         self.assertFalse((ROOT / "models/yolov8m-test.pt").exists())
-        self.assertFalse((ROOT / "models/bestv4.pt").exists())
+        self.assertFalse((ROOT / "models/bestv3.pt").exists())
         self.assertFalse((ROOT / "models/efficientnet_pineapple_best.pth").exists())
         self.assertFalse(scanner.effnet_model.training)
         self.assertEqual(file_sha256(scanner.EFFNET_MODEL_PATH), CLASSIFIER_SHA256)
         self.assertEqual(scanner.classifier_labels, CLASSIFIER_LABELS)
-        self.assertEqual(Path(scanner.YOLO_MODEL_PATH), ROOT / "models/bestv3.pt")
+        self.assertEqual(Path(scanner.YOLO_MODEL_PATH), ROOT / "models/bestv4.pt")
         self.assertFalse((ROOT / "models/yolov8m.pt").exists())
         self.assertFalse((ROOT / "models/archive/yolov8m-coco.pt").exists())
         self.assertEqual(file_sha256(scanner.YOLO_MODEL_PATH), DETECTOR_SHA256)
@@ -148,9 +148,10 @@ class ScannerTests(unittest.TestCase):
             self.assertTrue(0 <= item["efficientnet_confidence_percent"] <= 100)
             self.assertTrue(0 <= item["yolo_confidence_percent"] <= 100)
 
-    def test_blank_image_without_regions_stays_unclassified(self):
+    def test_blank_white_image_without_regions_stays_unclassified(self):
+        white = cv2.imencode(".jpg", np.full((96, 128, 3), 255, dtype=np.uint8))[1].tobytes()
         with patch.object(scanner, "effnet_model") as classify:
-            result = scanner.run_pipeline(self.blank)
+            result = scanner.run_pipeline(white)
         classify.assert_not_called()
         self.assertEqual(result["detection_count"], 0)
         self.assertEqual(result["top_class"], "No Detection")
@@ -198,17 +199,17 @@ class ScannerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid output scores"):
                 scanner.run_pipeline(self.blank)
 
-    def test_effnet_threshold_accepts_exactly_35_percent_and_rejects_lower_scores_without_losing_crops(self):
+    def test_effnet_threshold_accepts_exactly_65_percent_and_rejects_lower_scores_without_losing_crops(self):
         boxes = [SimpleNamespace(conf=torch.tensor([0.8]), cls=torch.tensor([0]),
                                  xyxy=torch.tensor([[0, 0, 80, 80]])) for _ in range(3)]
-        probabilities = torch.tensor([[0.2, 0.25, 0.3499, 0.2001],
-                                      [0.2, 0.25, 0.35, 0.2],
-                                      [0.2, 0.25, 0.3501, 0.1999]])
+        probabilities = torch.tensor([[0.1, 0.15, 0.6499, 0.1001],
+                                      [0.1, 0.15, 0.65, 0.1],
+                                      [0.1, 0.15, 0.6501, 0.0999]])
         with patch.object(scanner, "yolo_model", return_value=[SimpleNamespace(boxes=boxes, names={0: "item"})]), \
                 patch.object(scanner, "effnet_model", return_value=torch.zeros(3,4)), \
                 patch.object(scanner.torch, "softmax", return_value=probabilities):
             result = scanner.run_pipeline(self.blank)
-        self.assertEqual(scanner.EFFNET_CONF_THRESHOLD, 0.35)
+        self.assertEqual(scanner.EFFNET_CONF_THRESHOLD, 0.65)
         self.assertEqual(result["detection_count"], 3)
         self.assertEqual(len(result["image_versions"]["yolo_crops"]), 3)
         self.assertEqual(result["classified_region_count"], 2)
@@ -250,13 +251,13 @@ class ScannerTests(unittest.TestCase):
         self.assertTrue(health["detector_ready"])
         self.assertTrue(health["classification_ready"])
         self.assertEqual(health["active_classifier"], "EfficientNet-B0")
-        self.assertEqual(health["detector_artifact"], "bestv3.pt")
+        self.assertEqual(health["detector_artifact"], "bestv4.pt")
         self.assertEqual(health["detector_sha256"], DETECTOR_SHA256)
         self.assertEqual(health["detector_classes"], {"0": "item"})
         self.assertEqual(health["classifier_classes"], list(CLASSIFIER_CONDITIONS))
         self.assertEqual(health["image_versions"], ["original", "yolo_crops"])
         self.assertEqual(health["classifier_input"], "yolo-bounding-box-crops")
-        self.assertEqual(health["classifier_confidence_threshold"], 0.35)
+        self.assertEqual(health["classifier_confidence_threshold"], 0.65)
         self.assertEqual(health["yolo_confidence_threshold"], 0.65)
         self.assertEqual(self.client.post("/api/predict").status_code, 401)
         self.assertEqual(self.client.options("/api/predict").status_code, 204)

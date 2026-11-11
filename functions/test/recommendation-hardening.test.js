@@ -25,8 +25,8 @@ for (const condition of CONDITIONS) {
       for (const secret of ["PRIVATE_NOTE", "PRIVATE_ACCOUNT", "PRIVATE_FARM", "PRIVATE_IMAGE", "private-key"]) assert.ok(!text.includes(secret));
       if (prepared.agronomist) {
         assert.deepEqual(payload.immediateActions, condition.actions.map(action => action.text));
-        assert.equal(payload.topics.length, 15);
-        return response(envelope({ actions: payload.immediateActions, sections: Array(15).fill("a") }));
+        assert.equal(payload.topics.length, 10);
+        return response(envelope({ actions: payload.immediateActions, sections: Array(10).fill("a") }));
       }
       assert.equal(payload.reviewedGuidance[0].type, condition.type);
       assert.deepEqual(payload.reviewedGuidance[0].actions, condition.actions);

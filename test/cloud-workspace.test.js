@@ -116,7 +116,7 @@ test('a completed inconclusive scan can receive a photo report after opt-in',asy
     assert.deepEqual(Buffer.from(image.inlineData.data, 'base64'), jpeg);
     const input = JSON.parse(text.text);
     assert.deepEqual(input.result, {condition:'Unclassified',confidence:null,regions:[]});
-    const result = {actions: input.immediateActions, sections: Array(15).fill('a'), photoObservations:observations};
+    const result = {actions: input.immediateActions, sections: Array(10).fill('a'), photoObservations:observations};
     return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(result)}]}}]});
   });
   const inconclusive = {...scan,topClass:'No Detection',topConfidence:null,statusType:'monitor',detectionCount:0,detections:[]};
@@ -138,8 +138,18 @@ test('a completed inconclusive scan can receive a photo report after opt-in',asy
   assert.equal(recommendation.source,'gemini');
   assert.match(recommendation.analysis,/could not classify/);
   assert.deepEqual(recommendation.photoObservations,observations);
-  assert.equal(recommendation.sections.length,15);
+  assert.equal(recommendation.sections.length,10);
   assert.deepEqual((await (await f.request(route)).json()).recommendation,recommendation);
+  const previousReport = {
+    ...recommendation,
+    sections: Array.from({length:15}, (_, index) => ({title:`Topic ${index + 1}`,text:'Inspect the fruit in person.'}))
+  };
+  f.db.records.set(recommendationPath('alice','private'),{
+    version:recommendations.SCHEMA_VERSION,
+    fingerprint:prepared.previousFingerprints[0],
+    recommendation:previousReport
+  });
+  assert.deepEqual((await (await f.request(route)).json()).recommendation,previousReport);
   assert.equal(calls,1);
 });
 

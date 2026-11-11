@@ -31,15 +31,16 @@ const conditions = {
 };
 
 const exclusiveObservations = [
-  ["The visible shell is mostly green.", "The visible shell is mostly yellow or orange.", "The visible shell has both green and yellow areas."],
+  ["The visible shell is mostly green.", "The visible shell is mostly yellow or orange.", "The visible shell has both green and yellow areas.", "The visible shell has a reddish tint."],
   ["The visible shell eyes look rounded or raised.", "The visible shell eyes look flat."],
-  ["One crown is visible.", "More than one crown is visible."]
+  ["One crown is visible.", "More than one crown is visible."],
+  ["The fruit appears flattened or fan-shaped.", "The fruit appears cylindrical.", "The fruit appears tapered."]
 ];
 const photoObservations = [
   ...exclusiveObservations.flat(),
-  "The fruit appears flattened or fan-shaped.",
   "The fruit appears uneven in shape.",
   "The top has a dense cluster of leaves.",
+  "Spines are visible along the edges of the leaves.",
   "A dark or discolored patch is visible on the fruit.",
   "The fruit surface has a visible break or damaged spot.",
   "The fruit or crown is partly hidden or outside the frame."
@@ -94,31 +95,46 @@ function reportContext(scan) {
 function supportsAgronomist(label) { return label !== "Unclassified" && Object.hasOwn(conditions, label); }
 
 function reportChoices(condition) {
-  const { nature, check } = conditions[condition];
+  const { label, nature, check } = conditions[condition];
   return [
-    ["Photo assessment and field checks (Pagsusuri)", nature, nature + " Compare it with nearby fruit before deciding what to do."],
-    ["Ripeness, maturity and sweetness (Pagkahinog)", "Check maturity in the field with your cultivar or buyer guide. Use a measured reading if sweetness matters to your buyer.", "Compare shell development with fruit from the same planting. Record measured sweetness separately from the photo check."],
-    ["Harvest and salvage (Pag-aani)", "Make harvest decisions after inspecting fruit in person and checking buyer requirements. Keep visibly damaged or suspect fruit separate.", "Sort sound fruit by your buyer’s grade. Ask your agriculture office about handling suspect fruit and local storage guidance."],
-    ["Primary nutrients (Pangunahing pataba)", "Review your existing nitrogen, phosphorus and potassium plan with a local adviser before changing it.", "Bring your soil test, recent fertilizer history and growth stage to a local adviser for a feeding plan."],
-    ["Secondary and micronutrients (Micronutrients)", "Check soil or tissue results before treating a suspected nutrient shortage.", "Ask an adviser whether a nutrient test is warranted before adding calcium, boron, zinc or magnesium."],
-    ["Low-cost organic inputs (Likas-kayang pataba)", "Discuss locally available plant or fruit ferments, calcium preparations, ash and compost-based inputs with your adviser before applying them.", "Compare low-cost organic inputs using local extension guidance. Confirm suitability and application instructions for your field."],
-    ["Soil health and drainage (Lupa at daloy ng tubig)", "Check where water pools after rain and clear blocked drains where it is safe to do so.", "Use a soil test to guide pH changes. Review raised beds and drainage with your adviser for areas that stay wet."],
-    ["Pests and vectors (Pamamahala sa peste)", "Look at the plant base, leaf undersides and fruit for insects or new damage. Photograph anything unusual for identification.", "Check nearby plants for similar damage and ask an adviser to identify pests before choosing a control."],
-    ["Sanitation and biosecurity (Sanitasyon)", "Separate suspect fruit during handling. Clean tools and containers between batches according to local guidance.", "Keep a record of affected plants and ask your agriculture office about suitable sanitation and disposal procedures."],
-    ["Irrigation and moisture (Pandarilig)", "Check soil moisture before watering and note spots that stay wet after rain.", "Inspect crowns and low areas for trapped water. Adjust watering based on actual field moisture and crop stage."],
-    ["Weather protection (Init, ulan at bagyo)", "Inspect the block after heavy rain or strong winds for standing water and leaning plants.", "Review shade, drainage and support needs before extreme weather. Check fruit for sun or storm damage afterward."],
-    ["Input costs (Gastos at badyet)", "List labor, materials and transport separately. Use current supplier quotes and check cost per application before buying.", "Compare farm-made and purchased inputs using your own local quotes, application area and labor costs."],
-    ["Returns and market options (Kita at pagbebenta)", "Use your actual saleable harvest, buyer quotes and costs to compare market options.", "Ask buyers about grade and processing options. Base a return estimate on measured quantities and written quotes."],
-    ["Action plan (Mga hakbang)", "Now: check the fruit in person. Next: record changes and seek advice if needed. Next cycle: review field records and adjust care with your adviser.", "Now: mark and photograph the sample. At follow-up: compare the fruit and nearby plants. Before the next cycle: review recurring issues with your adviser."],
-    ["Follow-up and re-scan (Pagsusubaybay)", check + " Re-scan at your next field visit or sooner if symptoms worsen.", check + " Contact your Municipal Agriculture Office if damage spreads or you need help identifying the cause."]
+    ["Image Check & Diagnosis",
+      [`${label}.`, nature],
+      [`${label}.`, nature, check]],
+    ["Variety Identification",
+      ["Check your planting records to confirm the variety."],
+      ["Ask your planting-material supplier to confirm the variety."]],
+    ["Ripeness & Sweetness Check",
+      ["Check maturity in person using your cultivar or buyer’s guide.", "Use a measured sweetness reading if your buyer requires one."],
+      ["Compare shell development with fruit from the same planting.", "Use the buyer’s maturity requirements to plan harvest timing."]],
+    ["Harvest or Discard Decision",
+      ["Inspect the fruit in person before deciding to harvest.", "Keep damaged or suspect fruit separate and ask your agriculture office about handling it."],
+      ["Sort sound fruit by your buyer’s grade.", "Ask your agriculture office about storage and disposal for suspect fruit."]],
+    ["Store-Bought Fertilizer to Use (With Prices)",
+      ["Bring your soil test and fertilizer history to a local adviser before changing what you apply.", "Ask a supplier for the current peso price once you know which product you need."],
+      ["Review your current feeding plan with a local adviser.", "Use the product label and local guidance to confirm the rate and compare current prices per application."]],
+    ["Cheap Homemade / Organic Option (With Prices)",
+      ["Ask your local agriculture office which organic inputs suit your soil and crop stage.", "Add up your actual material and labor costs before choosing an option."],
+      ["Compare locally available compost-based inputs with your adviser.", "Check the cost of materials and preparation in pesos before applying anything."]],
+    ["What NOT to Do (Mistakes to Avoid)",
+      ["Avoid changing fertilizer based on the photo alone.", "Keep suspect fruit out of containers with sound fruit."],
+      ["Avoid spraying before confirming the cause in the field.", "Keep suspect fruit separate during sorting."]],
+    ["Watering & Soil Care",
+      ["Check soil moisture before watering.", "Inspect drains where water pools after rain."],
+      ["Look for low spots that stay wet and check for blocked drainage.", "Use a soil test and local advice before changing soil pH."]],
+    ["Cleanliness & Pest Control",
+      ["Clean tools and containers between batches using local sanitation guidance.", "Check the plant base, leaf undersides and fruit for insects or new damage."],
+      ["Separate suspect fruit during handling and clean tools before the next batch.", "Photograph any insects or new damage and ask your agriculture office to identify the cause."]],
+    ["Estimated Cost vs. Selling Value (Profit Guide)",
+      ["Add your actual input, labor and transport costs in pesos.", "Use the amount you can sell and your buyer’s current quote to estimate the return."],
+      ["Get current quotes for the grades your buyer accepts.", "Compare expected sales with your costs using the weight or count you can actually sell."]]
   ];
 }
 
 const prompt = `Apply the grower report template below to the supplied photo and scan data. The app rules in this paragraph take precedence over conflicting directions in the template. Use result.condition and result.regions as the scanner result. Use the template's Healthy topic for No Disease, its Fruit Fasciation topic for Fruit Fasciation Disorder, its Multiple Crown topic for Multiple Crown Disorder, and its Fruit Rot topic for Fruit Rot Disease. For Unclassified, use general observation and field checks without assigning a condition. Use confidence and disagreement only to prioritize field checks. Treat diagnoses, severity, causes, treatment and harvest instructions, rates, recipes, prices, yields, and numeric targets in the template as unverified examples. Use only the reviewed choices supplied with the scan. The app adds known cultivar and growth stage privately; use general guidance for missing context and never infer field notes.
 
-Return the JSON selection specified by the app schema. Choose up to four exact immediate action texts in practical order and one option, "a" or "b", for each of the fifteen topics in order. The app renders these selections as the report. Keep the condition tentative and prioritize the field checks and follow-up from the applicable template topic.
+Return the JSON selection specified by the app schema. Choose up to four exact immediate action texts in practical order and one option, "a" or "b", for each of the ten topics in order. The app renders these selections as the report. Keep the condition tentative and prioritize the field checks and follow-up from the applicable template topic. Do not guess the variety or growth stage from a photo.
 
-When the schema asks for photoObservations, select up to three statements directly supported by the image. Read the image itself for visible details. Do not select a statement solely because the scanner reported a condition. Use an empty list when the pineapple or its features are unclear. Avoid contradictory choices and use at most one statement each for shell color, eye shape and crown count. Treat shell color as an observation and do not infer ripeness, sweetness, internal quality or safety from it.
+When the schema asks for photoObservations, select up to three statements directly supported by the image. Read the image itself for visible details. Do not select a statement solely because the scanner reported a condition. Use an empty list when the pineapple or its features are unclear. Avoid contradictory choices and use at most one statement each for shell color, eye shape, crown count and fruit shape. Treat shell color as an observation and do not infer ripeness, sweetness, internal quality or safety from it.
 
 --- Grower report template ---
 ${reportTemplate}
@@ -171,13 +187,18 @@ function assembleAgronomist(value, prepared, actions, hasPhoto) {
 
   const profile = cultivars[prepared.reportContext.cultivar];
   const stage = growthStages[prepared.reportContext.stage];
-  const sections = choices.map(([title, a, b], index) => ({ title, text: value.sections[index] === "a" ? a : b }));
-  if (profile) {
-    sections[0].text += ` Recorded variety: ${profile.label}.`;
-    sections[1].text += ` ${profile.maturity}`;
-    sections[12].text += ` ${profile.market}`;
+  const sections = choices.map(([title, a, b], index) => ({ title, text: (value.sections[index] === "a" ? a : b).join("\n") }));
+  if (hasPhoto && value.photoObservations.length) {
+    sections[0].text = [...value.photoObservations, sections[0].text].join("\n");
+    const shellColor = value.photoObservations.find(observation => exclusiveObservations[0].includes(observation));
+    if (shellColor) sections[2].text = `${shellColor}\n${sections[2].text}`;
   }
-  if (stage) sections[13].text += ` ${stage}`;
+  if (profile) {
+    sections[1].text = `Recorded variety: ${profile.label}.`;
+    sections[2].text += `\n${profile.maturity}`;
+    sections[9].text += `\n${profile.market}`;
+  }
+  if (stage) sections[3].text += `\n${stage}`;
 
   const label = conditions[condition].label;
   const mixed = new Set(prepared.input.regions.map(region => region.condition)).size > 1;

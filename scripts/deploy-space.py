@@ -42,7 +42,8 @@ for key, value in {
     "FIREBASE_PROJECT_ID": config["VITE_FIREBASE_PROJECT_ID"],
     "FIREBASE_WEB_API_KEY": config["VITE_FIREBASE_API_KEY"],
     "FRONTEND_ORIGIN": "https://agri-vision-eosin.vercel.app",
-    "EFFNET_CONF_THRESHOLD": "0.35",
+    "YOLO_CONF_THRESHOLD": "0.65",
+    "EFFNET_CONF_THRESHOLD": "0.65",
 }.items():
     if key not in current_variables or current_variables[key].value != value:
         api.add_space_variable(repo, key, value)
@@ -52,13 +53,13 @@ operations = [CommitOperationAdd(path_in_repo=file, path_or_fileobj=str(folder /
 existing = set(api.list_repo_files(repo, repo_type="space"))
 removed = [file for file in (
     "yolov8.pt", "efficientnetB0.pth", "index.html", "app.js", "style.css",
-    "models/bestv4.pt", "models/efficientnet_pineapple_best.pth",
+    "models/bestv3.pt", "models/efficientnet_pineapple_best.pth",
     "api/health.mjs", "api/predict.mjs", "vercel.json",
 ) if file in existing]
 operations.extend(CommitOperationDelete(path_in_repo=file) for file in removed)
 commit = api.create_commit(repo, repo_type="space", parent_commit=info.sha,
     operations=operations,
-    commit_message="Restore the YOLO bestv3 detector")
+    commit_message="Deploy YOLO bestv4 with 65 percent detector and classifier thresholds")
 evidence = {"repository": repo, "commit": commit.oid, "url": commit.commit_url,
     "removedLegacyFiles": removed, "hardware": "cpu-basic", "authMode": "rest"}
 (release / "backend-deployment.json").write_text(json.dumps(evidence, indent=2) + "\n")

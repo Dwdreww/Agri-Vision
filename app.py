@@ -29,7 +29,7 @@ YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", os.path.join(BASE_DIR, "models", 
 EFFNET_MODEL_PATH = os.getenv("EFFNET_MODEL_PATH", os.path.join(BASE_DIR, "models", CLASSIFIER_ARTIFACT))
 CLASSIFIER_METRICS_PATH = os.path.join(BASE_DIR, "models", "efficientnet_metrics.json")
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.65"))
-EFFNET_CONF_THRESHOLD = float(os.getenv("EFFNET_CONF_THRESHOLD", "0.35"))
+EFFNET_CONF_THRESHOLD = float(os.getenv("EFFNET_CONF_THRESHOLD", "0.65"))
 if not math.isfinite(EFFNET_CONF_THRESHOLD) or not 0 <= EFFNET_CONF_THRESHOLD <= 1:
     raise ValueError("EFFNET_CONF_THRESHOLD must be between 0 and 1")
 ANNOTATION_JPEG_QUALITY = int(os.getenv("ANNOTATION_JPEG_QUALITY", "82"))
@@ -268,7 +268,7 @@ def run_pipeline(file_bytes):
                 index = int(scores.argmax().item())
                 confidence = float(scores[index].item())
                 # Compare in the score tensor's precision so an exact 35%
-                # float32 score is accepted at a configured threshold of 0.35.
+                # float32 score is accepted at a configured threshold of 0.65.
                 accepted = bool((scores[index] >= EFFNET_CONF_THRESHOLD).item())
                 condition = CLASSIFIER_CONDITIONS[index] if accepted else "Uncertain"
                 detection.update({

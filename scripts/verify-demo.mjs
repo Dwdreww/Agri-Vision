@@ -63,9 +63,11 @@ try {
     assert.equal(health.scanner_ready, true);
     assert.equal(health.classification_ready, true);
     assert.equal(health.auth_mode, 'rest');
-    assert.equal(health.detector_artifact, 'bestv3.pt');
-    assert.equal(health.detector_sha256, '28a5c00ab63b92c052f5e4701cdc0f79f857f59ca6c7f5e81e78e78f41b544c5');
-    assert.equal(health.model_version, 'yolov8m-28a5c00ab63b-effnetb0-03af1ac8bba3-roi-v3');
+    assert.equal(health.detector_artifact, 'bestv4.pt');
+    assert.equal(health.detector_sha256, 'f53a9470b13c1e41e4821ce0622c38676fe4e4c48c7d63dbc355002631b53826');
+    assert.equal(health.model_version, 'yolov8m-f53a9470b13c-effnetb0-03af1ac8bba3-roi-v3');
+    assert.equal(health.yolo_confidence_threshold, 0.65);
+    assert.equal(health.classifier_confidence_threshold, 0.65);
     const account = await createAccount();
     const token = await signIn(account);
     assert.equal((await predict(origin)).status, 401);
